@@ -20,9 +20,9 @@ export default function AppTabs() {
         />
       </NativeTabs.Trigger>
 
-      <NativeTabs.Trigger name="purchases">
-        <NativeTabs.Trigger.Label>Purchases</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="cart.fill" md="shopping_cart" renderingMode="template" />
+      <NativeTabs.Trigger name="profile">
+        <NativeTabs.Trigger.Label>Profile</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Icon sf="person.fill" md="person" renderingMode="template" />
       </NativeTabs.Trigger>
     </NativeTabs>
   );

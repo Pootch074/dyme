@@ -34,7 +34,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "@react-native-vector-icons/feather"
+      "@react-native-vector-icons/feather",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,3 +1,4 @@
+import type { Href } from 'expo-router';
 import {
   Tabs,
   TabList,
@@ -21,11 +22,16 @@ export default function AppTabs() {
       <TabSlot style={{ height: '100%' }} />
       <TabList asChild>
         <CustomTabList>
-          <TabTrigger name="home" href="/" asChild>
+          {/*
+            Typed routes doesn't resolve "/" for an index route nested in a
+            group (verified "/" works and "/index" 404s at runtime) — cast
+            until that's fixed upstream.
+          */}
+          <TabTrigger name="home" href={'/' as Href} asChild>
             <TabButton>Home</TabButton>
           </TabTrigger>
-          <TabTrigger name="purchases" href="/purchases" asChild>
-            <TabButton>Purchases</TabButton>
+          <TabTrigger name="profile" href="/profile" asChild>
+            <TabButton>Profile</TabButton>
           </TabTrigger>
         </CustomTabList>
       </TabList>

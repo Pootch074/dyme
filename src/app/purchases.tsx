@@ -8,12 +8,13 @@ import {
   ScrollView,
   SectionList,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BackButton } from '@/components/back-button';
 import { DateTimeField } from '@/components/date-time-field';
+import { FormInput } from '@/components/form-input';
 import { PurchaseRow } from '@/components/purchase-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -54,6 +55,7 @@ export default function PurchasesScreen() {
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [productName, setProductName] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -63,6 +65,7 @@ export default function PurchasesScreen() {
 
   const today = new Date();
   const sections = useMemo(() => groupByCreatedDate(purchases), [purchases]);
+  const pendingDeletePurchase = purchases.find((item) => item.id === pendingDeleteId) ?? null;
 
   const updateField = (setter: (value: string) => void) => (text: string) => {
     setter(text);
@@ -102,6 +105,19 @@ export default function PurchasesScreen() {
     setIsDialogOpen(false);
     setEditingId(null);
     resetForm();
+  };
+
+  const handleRequestRemove = (id: string) => {
+    setPendingDeleteId(id);
+  };
+
+  const handleCancelDelete = () => {
+    setPendingDeleteId(null);
+  };
+
+  const handleConfirmDelete = () => {
+    if (pendingDeleteId) removePurchase(pendingDeleteId);
+    setPendingDeleteId(null);
   };
 
   const handleSubmit = () => {
@@ -148,7 +164,7 @@ export default function PurchasesScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PurchaseRow purchase={item} onEdit={handleEdit} onRemove={removePurchase} />
+            <PurchaseRow purchase={item} onEdit={handleEdit} onRemove={handleRequestRemove} />
           )}
           renderSectionHeader={({ section }) => (
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
@@ -159,6 +175,7 @@ export default function PurchasesScreen() {
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <>
+              <BackButton />
               <ThemedText type="subtitle">Purchases</ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.subtitleText}>
                 Track how long ago you bought something.
@@ -249,29 +266,52 @@ export default function PurchasesScreen() {
           </ThemedView>
         </KeyboardAvoidingView>
       </Modal>
+
+      <Modal
+        visible={pendingDeletePurchase !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelDelete}>
+        <View style={styles.modalRoot}>
+          <Pressable
+            style={styles.modalBackdrop}
+            onPress={handleCancelDelete}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss dialog"
+          />
+
+          <ThemedView type="backgroundElement" style={styles.confirmDialog}>
+            <ThemedText type="subtitle" numberOfLines={1}>
+              Remove purchase?
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.confirmMessage}>
+              {pendingDeletePurchase
+                ? `"${pendingDeletePurchase.productName}" will be permanently removed.`
+                : ''}
+            </ThemedText>
+
+            <View style={styles.confirmActions}>
+              <Pressable
+                onPress={handleCancelDelete}
+                style={({ pressed }) => [styles.confirmButton, pressed && styles.pressed]}>
+                <ThemedText type="smallBold">Cancel</ThemedText>
+              </Pressable>
+              <Pressable
+                onPress={handleConfirmDelete}
+                style={({ pressed }) => [
+                  styles.confirmButton,
+                  { backgroundColor: theme.danger },
+                  pressed && styles.pressed,
+                ]}>
+                <ThemedText type="smallBold" style={styles.confirmDeleteText}>
+                  Delete
+                </ThemedText>
+              </Pressable>
+            </View>
+          </ThemedView>
+        </View>
+      </Modal>
     </ThemedView>
-  );
-}
-
-type FormInputProps = {
-  value: string;
-  onChangeText: (text: string) => void;
-  placeholder: string;
-  keyboardType?: 'default' | 'numeric';
-};
-
-function FormInput({ value, onChangeText, placeholder, keyboardType }: FormInputProps) {
-  const theme = useTheme();
-
-  return (
-    <TextInput
-      value={value}
-      onChangeText={onChangeText}
-      placeholder={placeholder}
-      placeholderTextColor={theme.textSecondary}
-      keyboardType={keyboardType}
-      style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundSelected }]}
-    />
   );
 }
 
@@ -297,12 +337,6 @@ const styles = StyleSheet.create({
   },
   sectionHeader: {
     marginTop: Spacing.three,
-  },
-  input: {
-    fontSize: 16,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-    borderRadius: Spacing.two,
   },
   addButton: {
     backgroundColor: '#3c87f7',
@@ -331,10 +365,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 4,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
+    boxShadow: [{ offsetX: 0, offsetY: 2, blurRadius: 4, color: 'rgba(0, 0, 0, 0.25)' }],
   },
   fabPressed: {
     opacity: 0.85,
@@ -378,5 +409,28 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     paddingTop: 0,
     gap: Spacing.three,
+  },
+  confirmDialog: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: Spacing.four,
+    padding: Spacing.three,
+    gap: Spacing.two,
+  },
+  confirmMessage: {
+    marginBottom: Spacing.two,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  confirmButton: {
+    flex: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+  },
+  confirmDeleteText: {
+    color: '#ffffff',
   },
 });
