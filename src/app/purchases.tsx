@@ -18,8 +18,9 @@ import { usePurchases } from '@/hooks/use-purchases';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function PurchasesScreen() {
-  const { purchases, isLoading, addPurchase, removePurchase } = usePurchases();
+  const { purchases, isLoading, addPurchase, updatePurchase, removePurchase } = usePurchases();
 
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [productName, setProductName] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -34,7 +35,34 @@ export default function PurchasesScreen() {
     if (error) setError(null);
   };
 
-  const handleAdd = () => {
+  const resetForm = () => {
+    setProductName('');
+    setBrand('');
+    setModel('');
+    setQuantity('1');
+    setPurchaseDate(new Date());
+    setError(null);
+  };
+
+  const handleEdit = (id: string) => {
+    const purchase = purchases.find((item) => item.id === id);
+    if (!purchase) return;
+
+    setEditingId(id);
+    setProductName(purchase.productName);
+    setBrand(purchase.brand);
+    setModel(purchase.model);
+    setQuantity(String(purchase.quantity));
+    setPurchaseDate(new Date(purchase.purchaseDate));
+    setError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    resetForm();
+  };
+
+  const handleSubmit = () => {
     const trimmedName = productName.trim();
     if (!trimmedName) {
       setError('Enter a product name.');
@@ -52,20 +80,22 @@ export default function PurchasesScreen() {
       return;
     }
 
-    addPurchase({
+    const input = {
       productName: trimmedName,
       brand: brand.trim(),
       model: model.trim(),
       quantity: parsedQuantity,
       purchaseDate,
-    });
+    };
 
-    setProductName('');
-    setBrand('');
-    setModel('');
-    setQuantity('1');
-    setPurchaseDate(new Date());
-    setError(null);
+    if (editingId) {
+      updatePurchase(editingId, input);
+    } else {
+      addPurchase(input);
+    }
+
+    setEditingId(null);
+    resetForm();
   };
 
   return (
@@ -75,7 +105,9 @@ export default function PurchasesScreen() {
           <FlatList
             data={purchases}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <PurchaseRow purchase={item} onRemove={removePurchase} />}
+            renderItem={({ item }) => (
+              <PurchaseRow purchase={item} onEdit={handleEdit} onRemove={removePurchase} />
+            )}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             ListHeaderComponent={
@@ -109,12 +141,22 @@ export default function PurchasesScreen() {
                   )}
 
                   <Pressable
-                    onPress={handleAdd}
+                    onPress={handleSubmit}
                     style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
                     <ThemedText type="smallBold" style={styles.addButtonText}>
-                      Add purchase
+                      {editingId ? 'Save changes' : 'Add purchase'}
                     </ThemedText>
                   </Pressable>
+
+                  {editingId ? (
+                    <Pressable
+                      onPress={handleCancelEdit}
+                      style={({ pressed }) => pressed && styles.pressed}>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.cancelText}>
+                        Cancel edit
+                      </ThemedText>
+                    </Pressable>
+                  ) : null}
                 </ThemedView>
               </>
             }
@@ -197,6 +239,9 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#ffffff',
+  },
+  cancelText: {
+    textAlign: 'center',
   },
   pressed: {
     opacity: 0.7,

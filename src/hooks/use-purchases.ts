@@ -76,9 +76,28 @@ export function usePurchases() {
     );
   }, []);
 
+  const updatePurchase = useCallback((id: string, input: AddPurchaseInput) => {
+    setPurchases((prev) =>
+      prev
+        .map((purchase) =>
+          purchase.id === id
+            ? {
+                ...purchase,
+                productName: input.productName,
+                brand: input.brand,
+                model: input.model,
+                quantity: input.quantity,
+                purchaseDate: input.purchaseDate.toISOString(),
+              }
+            : purchase
+        )
+        .sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate))
+    );
+  }, []);
+
   const removePurchase = useCallback((id: string) => {
     setPurchases((prev) => prev.filter((purchase) => purchase.id !== id));
   }, []);
 
-  return { purchases, isLoading, addPurchase, removePurchase };
+  return { purchases, isLoading, addPurchase, updatePurchase, removePurchase };
 }

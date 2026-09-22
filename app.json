@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "duolingo",
-    "slug": "duolingo",
+    "name": "dymeApp",
+    "slug": "dymeApp",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "duolingo",
+    "scheme": "dymeApp",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -33,7 +33,8 @@
           "imageWidth": 76
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@react-native-vector-icons/feather"
     ],
     "experiments": {
       "typedRoutes": true,
