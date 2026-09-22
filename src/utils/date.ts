@@ -50,11 +50,19 @@ export function formatDisplayDateTime(date: Date): string {
   });
 }
 
+function startOfDay(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/** Whole calendar days from `from` to `to` (e.g. yesterday to today is 1), ignoring time of day. */
+function daysBetween(from: Date, to: Date): number {
+  const dayMs = 24 * 60 * 60 * 1000;
+  return Math.round((startOfDay(to).getTime() - startOfDay(from).getTime()) / dayMs);
+}
+
 /** Renders how long ago `date` was relative to `now` (defaults to the current time), e.g. "3 days ago". */
 export function formatRelativeTime(date: Date, now: Date = new Date()): string {
-  const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
-  const dayMs = 24 * 60 * 60 * 1000;
-  const days = Math.round((startOfDay(now).getTime() - startOfDay(date).getTime()) / dayMs);
+  const days = daysBetween(date, now);
 
   if (days < 0) return 'In the future';
   if (days === 0) return 'Today';
@@ -73,4 +81,13 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
 
   const years = Math.round(days / 365.25);
   return years === 1 ? '1 year ago' : `${years} years ago`;
+}
+
+/** Renders a calendar-day section heading, e.g. "Today", "Yesterday", or "Jun 15, 2025". */
+export function formatDateHeading(date: Date): string {
+  const days = daysBetween(date, new Date());
+
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Yesterday';
+  return formatDisplayDate(date);
 }

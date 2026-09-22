@@ -71,27 +71,23 @@ export function usePurchases() {
       purchaseDate: input.purchaseDate.toISOString(),
       createdAt: new Date().toISOString(),
     };
-    setPurchases((prev) =>
-      [...prev, purchase].sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate))
-    );
+    setPurchases((prev) => [...prev, purchase]);
   }, []);
 
   const updatePurchase = useCallback((id: string, input: AddPurchaseInput) => {
     setPurchases((prev) =>
-      prev
-        .map((purchase) =>
-          purchase.id === id
-            ? {
-                ...purchase,
-                productName: input.productName,
-                brand: input.brand,
-                model: input.model,
-                quantity: input.quantity,
-                purchaseDate: input.purchaseDate.toISOString(),
-              }
-            : purchase
-        )
-        .sort((a, b) => b.purchaseDate.localeCompare(a.purchaseDate))
+      prev.map((purchase) =>
+        purchase.id === id
+          ? {
+              ...purchase,
+              productName: input.productName,
+              brand: input.brand,
+              model: input.model,
+              quantity: input.quantity,
+              purchaseDate: input.purchaseDate.toISOString(),
+            }
+          : purchase
+      )
     );
   }, []);
 
