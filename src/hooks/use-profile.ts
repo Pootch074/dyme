@@ -5,13 +5,11 @@ export type Profile = {
   name: string;
   email: string;
   phone: string;
-  employeeNo: string;
-  entity: string;
 };
 
 const STORAGE_KEY = 'user-profile';
 
-const EMPTY_PROFILE: Profile = { name: '', email: '', phone: '', employeeNo: '', entity: '' };
+const EMPTY_PROFILE: Profile = { name: '', email: '', phone: '' };
 
 /** Loads, persists, and updates the user's personal details in AsyncStorage. */
 export function useProfile() {

@@ -20,7 +20,6 @@ import { ThemedView } from '@/components/themed-view';
 import { TimeField } from '@/components/time-field';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { type DtrEntry, useDtr } from '@/hooks/use-dtr';
-import { useProfile } from '@/hooks/use-profile';
 import { useTheme } from '@/hooks/use-theme';
 import { formatDisplayDate, parseDateOnly, toDateOnlyString } from '@/utils/date';
 import { getPeriodForDate, listPeriodsWithEntries, periodLabel, type DtrPeriod } from '@/utils/dtr-period';
@@ -32,7 +31,7 @@ type DtrSection = {
   data: DtrEntry[];
 };
 
-/** Groups time logs into same half-month cutoff sections, newest date first. */
+/** Groups time logs into same calendar-month sections, newest date first. */
 function groupByPeriod(entries: DtrEntry[]): DtrSection[] {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
   const sections: DtrSection[] = [];
@@ -53,7 +52,6 @@ function groupByPeriod(entries: DtrEntry[]): DtrSection[] {
 
 export default function DtrScreen() {
   const { entries, isLoading, saveEntry, removeEntry } = useDtr();
-  const { profile } = useProfile();
   const theme = useTheme();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -137,7 +135,7 @@ export default function DtrScreen() {
   const handleExportPeriod = async (period: DtrPeriod) => {
     setExportError(null);
     try {
-      await exportDtrDocument(buildDtrHtml({ period, entries, profile }));
+      await exportDtrDocument(buildDtrHtml({ period, entries }));
       setIsExportOpen(false);
     } catch (err) {
       setExportError(err instanceof Error ? err.message : 'Could not export this DTR.');
@@ -347,7 +345,7 @@ export default function DtrScreen() {
               ) : (
                 periods.map((period) => (
                   <Pressable
-                    key={`${period.year}-${period.month}-${period.startDay}`}
+                    key={`${period.year}-${period.month}`}
                     onPress={() => handleExportPeriod(period)}
                     style={({ pressed }) => pressed && styles.pressed}>
                     <ThemedView type="backgroundSelected" style={styles.periodRow}>

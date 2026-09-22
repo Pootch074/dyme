@@ -2,13 +2,11 @@ import { parseDateOnly } from './date';
 
 import type { DtrEntry } from '@/hooks/use-dtr';
 
-/** A half-month DTR cutoff: the 1st–15th, or the 16th–end of a given month. */
+/** A full calendar month. */
 export type DtrPeriod = {
   year: number;
   /** 0-indexed, matching Date#getMonth. */
   month: number;
-  startDay: number;
-  endDay: number;
 };
 
 export const MONTH_NAMES = [
@@ -27,27 +25,23 @@ export const MONTH_NAMES = [
 ];
 
 export function getPeriodForDate(date: Date): DtrPeriod {
-  const year = date.getFullYear();
-  const month = date.getMonth();
-  const startDay = date.getDate() <= 15 ? 1 : 16;
-  const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-  const endDay = startDay === 1 ? 15 : lastDayOfMonth;
-  return { year, month, startDay, endDay };
+  return { year: date.getFullYear(), month: date.getMonth() };
+}
+
+/** Number of days in the period's month (28–31). */
+export function daysInPeriod(period: DtrPeriod): number {
+  return new Date(period.year, period.month + 1, 0).getDate();
 }
 
 function periodSortKey(period: DtrPeriod): number {
-  return period.year * 10000 + period.month * 100 + period.startDay;
+  return period.year * 100 + period.month;
 }
 
 export function periodLabel(period: DtrPeriod): string {
-  return `${MONTH_NAMES[period.month]} ${period.startDay}–${period.endDay}, ${period.year}`;
+  return `${MONTH_NAMES[period.month]} ${period.year}`;
 }
 
-export function isSamePeriod(a: DtrPeriod, b: DtrPeriod): boolean {
-  return periodSortKey(a) === periodSortKey(b);
-}
-
-/** Distinct half-month periods that have at least one entry, newest first. */
+/** Distinct months that have at least one entry, newest first. */
 export function listPeriodsWithEntries(
   entries: DtrEntry[]
 ): (DtrPeriod & { entryCount: number })[] {

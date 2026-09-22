@@ -42,8 +42,6 @@ function ProfileForm({ initialProfile, onSave }: ProfileFormProps) {
   const [name, setName] = useState(initialProfile.name);
   const [email, setEmail] = useState(initialProfile.email);
   const [phone, setPhone] = useState(initialProfile.phone);
-  const [employeeNo, setEmployeeNo] = useState(initialProfile.employeeNo);
-  const [entity, setEntity] = useState(initialProfile.entity);
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
 
@@ -60,13 +58,7 @@ function ProfileForm({ initialProfile, onSave }: ProfileFormProps) {
       return;
     }
 
-    onSave({
-      name: trimmedName,
-      email: email.trim(),
-      phone: phone.trim(),
-      employeeNo: employeeNo.trim(),
-      entity: entity.trim(),
-    });
+    onSave({ name: trimmedName, email: email.trim(), phone: phone.trim() });
     setJustSaved(true);
   };
 
@@ -85,16 +77,6 @@ function ProfileForm({ initialProfile, onSave }: ProfileFormProps) {
         placeholder="Phone number"
         keyboardType="phone-pad"
       />
-      <FormInput
-        value={employeeNo}
-        onChangeText={updateField(setEmployeeNo)}
-        placeholder="Employee No."
-      />
-      <FormInput value={entity} onChangeText={updateField(setEntity)} placeholder="Entity / Office" />
-      <ThemedText type="small" themeColor="textSecondary" style={styles.hintText}>
-        Employee No. and Entity appear on your exported DTR.
-      </ThemedText>
-
       {error && (
         <ThemedText type="small" themeColor="danger">
           {error}
@@ -154,9 +136,6 @@ const styles = StyleSheet.create({
   },
   savedText: {
     textAlign: 'center',
-  },
-  hintText: {
-    marginTop: -Spacing.two,
   },
   pressed: {
     opacity: 0.7,
