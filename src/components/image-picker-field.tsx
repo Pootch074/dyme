@@ -1,13 +1,12 @@
 import { Feather, type FeatherIconName } from '@react-native-vector-icons/feather';
 import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
+import { usePhotoPicker } from '@/hooks/use-photo-picker';
 import { useTheme } from '@/hooks/use-theme';
 
 type ImagePickerFieldProps = {
@@ -16,49 +15,10 @@ type ImagePickerFieldProps = {
   onChange: (uri: string | null) => void;
 };
 
-const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
-  mediaTypes: ['images'],
-  quality: 0.7,
-};
-
 /** Product photo input: take one with the camera or pick one from the device, preview it, replace or remove it. */
 export function ImagePickerField({ value, onChange }: ImagePickerFieldProps) {
   const theme = useTheme();
-  const [error, setError] = useState<string | null>(null);
-
-  const handleResult = (result: ImagePicker.ImagePickerResult) => {
-    if (!result.canceled && result.assets[0]) {
-      onChange(result.assets[0].uri);
-    }
-  };
-
-  const takePhoto = async () => {
-    setError(null);
-    try {
-      // Browsers prompt for camera access themselves.
-      if (Platform.OS !== 'web') {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-          setError('Camera access is off. Allow it in your device settings to take a photo.');
-          return;
-        }
-      }
-      handleResult(await ImagePicker.launchCameraAsync(PICKER_OPTIONS));
-    } catch (caught) {
-      console.warn('Failed to take photo', caught);
-      setError("Couldn't open the camera.");
-    }
-  };
-
-  const choosePhoto = async () => {
-    setError(null);
-    try {
-      handleResult(await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS));
-    } catch (caught) {
-      console.warn('Failed to choose photo', caught);
-      setError("Couldn't open your photos.");
-    }
-  };
+  const { error, takePhoto, choosePhoto, clearError } = usePhotoPicker(onChange);
 
   return (
     <View style={styles.container}>
@@ -72,7 +32,7 @@ export function ImagePickerField({ value, onChange }: ImagePickerFieldProps) {
           />
           <Pressable
             onPress={() => {
-              setError(null);
+              clearError();
               onChange(null);
             }}
             hitSlop={8}

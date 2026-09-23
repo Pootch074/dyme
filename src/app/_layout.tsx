@@ -5,7 +5,7 @@ import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo } from 'react';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import { Colors } from '@/constants/theme';
+import { useChromeColors } from '@/hooks/use-chrome-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemePreferenceProvider } from '@/hooks/use-theme-preference';
 
@@ -21,7 +21,7 @@ export default function RootLayout() {
 
 function ThemedStack() {
   const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme];
+  const colors = useChromeColors();
 
   // Everything a screen transition can briefly reveal — the native root view
   // (document body on web), the navigation container and each screen's

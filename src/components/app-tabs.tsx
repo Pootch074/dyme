@@ -1,17 +1,16 @@
 import { NativeTabs } from 'expo-router/unstable-native-tabs';
 
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useChromeColors } from '@/hooks/use-chrome-colors';
 
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme];
+  const colors = useChromeColors();
 
   return (
     <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.text } }}>
+      backgroundColor={colors.tabBar}
+      indicatorColor={colors.tabIndicator}
+      labelStyle={{ selected: { color: colors.tabLabel } }}
+      iconColor={colors.tabIcon}>
       <NativeTabs.Trigger name="index">
         <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
         <NativeTabs.Trigger.Icon

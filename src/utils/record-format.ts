@@ -1,5 +1,6 @@
-import type { RecordField } from '@/constants/record-categories';
-import { formatDisplayDate, formatTimeOnly, parseDateOnly } from '@/utils/date';
+import type { RecordCategory, RecordField } from '@/constants/record-categories';
+import type { RecordEntry } from '@/hooks/use-records';
+import { formatDisplayDate, formatRelativeTime, formatTimeOnly, parseDateOnly } from '@/utils/date';
 
 const pesoFormatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
 
@@ -29,4 +30,24 @@ export function formatFieldValue(field: RecordField, value: string): string {
     default:
       return value;
   }
+}
+
+/** Label / value rows for an entry's details view: every non-title field, plus "how long ago" and the added date. */
+export function buildEntryDetails(
+  category: RecordCategory,
+  entry: RecordEntry
+): { label: string; value: string }[] {
+  const details: { label: string; value: string }[] = [];
+  for (const field of category.fields) {
+    if (field.key === category.titleField) continue; // Shown as the title instead.
+    const value = entry.values[field.key] ?? '';
+    details.push({ label: field.label, value: formatFieldValue(field, value) });
+
+    const date = fieldDate(field, value);
+    if (field.relativeLabel && date) {
+      details.push({ label: field.relativeLabel, value: formatRelativeTime(date) });
+    }
+  }
+  details.push({ label: 'Added', value: formatDisplayDate(new Date(entry.createdAt)) });
+  return details;
 }
