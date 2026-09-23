@@ -1,17 +1,20 @@
 import { Feather } from '@react-native-vector-icons/feather';
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ActionMenu } from '@/components/action-menu';
 import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
 import { ConfirmDialog, Dialog } from '@/components/dialog';
 import { FormInput } from '@/components/form-input';
+import { QuantityStepper } from '@/components/quantity-stepper';
 import { RowActionButton } from '@/components/row-action-button';
 import { ShoppingRecordDialog } from '@/components/shopping-record-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { MaxContentWidth, Spacing, type ThemeColor } from '@/constants/theme';
 import { useShoppingDetails } from '@/hooks/use-shopping-details';
 import { useShoppingRecordForm } from '@/hooks/use-shopping-record-form';
 import { useTheme } from '@/hooks/use-theme';
@@ -80,43 +83,37 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
             />
           </View>
 
-          {/* Total expenses and the budget side by side when there's room, stacked on phones. */}
-          <View style={styles.summary}>
-            <ThemedView type="backgroundElement" style={styles.summaryCard}>
-              <ThemedText type="small" themeColor="textSecondary">
-                Total expenses
-              </ThemedText>
-              <ThemedText style={styles.totalAmount}>{formatCentavos(total)}</ThemedText>
-            </ThemedView>
-
-            <ThemedView type="backgroundElement" style={styles.summaryCard}>
-              <View style={styles.budgetRow}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Budget
-                </ThemedText>
-                <ThemedText type="smallBold">
-                  {status.kind === 'none' ? 'Not set' : formatCentavos(status.budget)}
-                </ThemedText>
-              </View>
-              {status.kind !== 'none' ? (
-                <View style={styles.budgetRow}>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {status.kind === 'over' ? 'Over budget' : 'Budget left'}
-                  </ThemedText>
-                  <ThemedText
-                    type="smallBold"
-                    themeColor={status.kind === 'under' ? 'text' : 'danger'}>
-                    {formatCentavos(status.kind === 'over' ? status.over : status.left)}
-                  </ThemedText>
-                </View>
-              ) : null}
-              <Button
-                label={status.kind === 'none' ? 'Set budget' : 'Edit budget'}
-                variant="secondary"
-                onPress={details.openBudget}
-              />
-            </ThemedView>
-          </View>
+          {/* One compact row: Total items | Total expenses | Budget left, each
+              centered in its cell. Cells are top-aligned so labels and values share
+              a line; the budget's "of ₱…" caption hangs below its own cell. The
+              budget is edited via Edit above. */}
+          <ThemedView type="backgroundElement" style={styles.summary}>
+            <Stat
+              label="Total items"
+              value={String(details.itemCount)}
+              style={styles.statItems}
+            />
+            <View style={[styles.statDivider, { backgroundColor: theme.backgroundSelected }]} />
+            <Stat
+              label="Total expenses"
+              value={formatCentavos(total)}
+              prominent
+              style={styles.statMoney}
+            />
+            <View style={[styles.statDivider, { backgroundColor: theme.backgroundSelected }]} />
+            <Stat
+              label={status.kind === 'over' ? 'Over budget' : 'Budget left'}
+              value={
+                status.kind === 'none'
+                  ? 'Not set'
+                  : formatCentavos(status.kind === 'over' ? status.over : status.left)
+              }
+              valueColor={status.kind === 'none' || status.kind === 'under' ? 'text' : 'danger'}
+              caption={status.kind === 'none' ? undefined : `of ${formatCentavos(status.budget)}`}
+              prominent
+              style={styles.statMoney}
+            />
+          </ThemedView>
 
           {warning ? (
             <View
@@ -132,7 +129,7 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
           <Button label="Add an item" icon="plus" onPress={details.openAddItem} />
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.itemsHeader}>
-            Items ({record.items.length})
+            Items
           </ThemedText>
           {record.items.length === 0 ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.emptyItems}>
@@ -145,6 +142,7 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
                 item={item}
                 onEdit={() => details.openEditItem(item)}
                 onDelete={() => details.requestDeleteItem(item.id)}
+                onQuantityChange={(quantity) => details.setItemQuantity(item.id, quantity)}
               />
             ))
           )}
@@ -206,31 +204,6 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
         </View>
       </Dialog>
 
-      <Dialog visible={details.isBudgetOpen} title="Budget" onClose={details.closeBudget}>
-        <Field label="Budget (₱)" error={details.budgetError}>
-          <FormInput
-            value={details.budgetInput}
-            onChangeText={details.setBudgetInput}
-            placeholder="e.g. 5,000.00"
-            accessibilityLabel="Budget"
-            keyboardType="decimal-pad"
-            invalid={Boolean(details.budgetError)}
-          />
-        </Field>
-        <ThemedText type="small" themeColor="textSecondary">
-          Leave empty to remove the budget.
-        </ThemedText>
-        <View style={styles.fieldRow}>
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={details.closeBudget}
-            style={styles.flex}
-          />
-          <Button label="Save" onPress={details.saveBudget} style={styles.flex} />
-        </View>
-      </Dialog>
-
       <ConfirmDialog
         visible={details.pendingDeleteItem !== null}
         title="Delete item?"
@@ -262,14 +235,51 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
   );
 }
 
+type StatProps = {
+  label: string;
+  value: string;
+  valueColor?: ThemeColor;
+  /** Larger value text, for the money figures. */
+  prominent?: boolean;
+  /** Small secondary line under the value, e.g. "of ₱5,000.00". */
+  caption?: string;
+  style?: object;
+};
+
+/** One labeled figure in the summary row, centered in its cell. */
+function Stat({ label, value, valueColor = 'text', prominent = false, caption, style }: StatProps) {
+  return (
+    <View style={[styles.stat, style]}>
+      <ThemedText themeColor="textSecondary" style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </ThemedText>
+      <ThemedText
+        themeColor={valueColor}
+        style={[styles.statValue, prominent && styles.statValueProminent]}
+        numberOfLines={1}>
+        {value}
+      </ThemedText>
+      {caption ? (
+        <ThemedText themeColor="textSecondary" style={styles.statLabel} numberOfLines={1}>
+          {caption}
+        </ThemedText>
+      ) : null}
+    </View>
+  );
+}
+
 type ItemRowProps = {
   item: ShoppingItem;
   onEdit: () => void;
   onDelete: () => void;
+  onQuantityChange: (quantity: number) => void;
 };
 
-/** Product name, unit price × quantity, item total, and edit / delete actions. */
-function ItemRow({ item, onEdit, onDelete }: ItemRowProps) {
+/** Product name and unit price; item total over a −/+ quantity stepper; and a "⋮" menu for edit / delete. */
+function ItemRow({ item, onEdit, onDelete, onQuantityChange }: ItemRowProps) {
+  const theme = useTheme();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <ThemedView type="backgroundElement" style={styles.itemRow}>
       <View style={styles.itemText}>
@@ -277,25 +287,37 @@ function ItemRow({ item, onEdit, onDelete }: ItemRowProps) {
           {item.name}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {formatCentavos(item.priceCentavos)} × {item.quantity}
+          {formatCentavos(item.priceCentavos)} each
         </ThemedText>
       </View>
-      <ThemedText style={styles.itemTotal}>{formatCentavos(itemTotal(item))}</ThemedText>
-      <View style={styles.itemActions}>
-        <RowActionButton
-          icon="edit-2"
-          tooltip="Edit"
-          accessibilityLabel={`Edit ${item.name}`}
-          onPress={onEdit}
-        />
-        <RowActionButton
-          icon="trash-2"
-          tooltip="Delete"
-          tone="danger"
-          accessibilityLabel={`Delete ${item.name}`}
-          onPress={onDelete}
-        />
+
+      <View style={styles.itemAmount}>
+        <ThemedText style={styles.itemTotal} numberOfLines={1}>
+          {formatCentavos(itemTotal(item))}
+        </ThemedText>
+        <QuantityStepper value={item.quantity} onChange={onQuantityChange} itemName={item.name} />
       </View>
+
+      <Pressable
+        onPress={() => setIsMenuOpen(true)}
+        hitSlop={8}
+        accessibilityRole="button"
+        accessibilityLabel={`More actions for ${item.name}`}
+        style={({ pressed }) => [
+          styles.menuButton,
+          pressed && { backgroundColor: theme.backgroundSelected },
+        ]}>
+        <Feather name="more-vertical" size={18} color={theme.textSecondary} />
+      </Pressable>
+
+      <ActionMenu
+        visible={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        items={[
+          { key: 'edit', label: 'Edit', icon: 'edit-2', onPress: onEdit },
+          { key: 'delete', label: 'Delete', icon: 'trash-2', tone: 'danger', onPress: onDelete },
+        ]}
+      />
     </ThemedView>
   );
 }
@@ -348,25 +370,42 @@ const styles = StyleSheet.create({
   },
   summary: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.two,
-  },
-  summaryCard: {
-    flexGrow: 1,
-    flexBasis: 240,
+    alignItems: 'flex-start',
     borderRadius: Spacing.three,
-    padding: Spacing.three,
-    gap: Spacing.two,
+    paddingVertical: Spacing.two + Spacing.one,
+    paddingHorizontal: Spacing.two + Spacing.one,
+    gap: Spacing.two + Spacing.one,
   },
-  totalAmount: {
-    fontSize: 32,
-    lineHeight: 40,
+  stat: {
+    alignItems: 'center',
+    gap: Spacing.one,
+    minWidth: 0,
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    // Spans a cell's label + gap + value (16 + 4 + 26).
+    height: 46,
+  },
+  statItems: {
+    flex: 0.8,
+  },
+  statMoney: {
+    flex: 1.1,
+  },
+  statLabel: {
+    fontSize: 12,
+    lineHeight: 16,
+    textAlign: 'center',
+  },
+  statValue: {
+    fontSize: 16,
+    // Same for every value, whatever its size, so values share one line.
+    lineHeight: 26,
     fontWeight: '700',
+    textAlign: 'center',
   },
-  budgetRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: Spacing.two,
+  statValueProminent: {
+    fontSize: 20,
   },
   warning: {
     flexDirection: 'row',
@@ -402,11 +441,21 @@ const styles = StyleSheet.create({
   itemName: {
     fontWeight: '600',
   },
+  itemAmount: {
+    alignItems: 'flex-end',
+    gap: Spacing.half,
+  },
   itemTotal: {
     fontWeight: '700',
+    // Lines the total's right edge up with the + glyph, not its wider touch area.
+    paddingRight: Spacing.one + Spacing.half,
   },
-  itemActions: {
-    flexDirection: 'row',
+  menuButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   field: {
     gap: Spacing.one,

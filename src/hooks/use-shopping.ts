@@ -7,7 +7,12 @@ const store = createPersistentStore<ShoppingRecord>({
   label: 'shopping records',
 });
 
-export type ShoppingRecordInput = { location: string; dateTime: string };
+export type ShoppingRecordInput = {
+  location: string;
+  dateTime: string;
+  /** Budget in centavos, or null for no budget. */
+  budgetCentavos: number | null;
+};
 export type ShoppingItemInput = Omit<ShoppingItem, 'id'>;
 
 function updateRecordById(id: string, change: (record: ShoppingRecord) => ShoppingRecord) {
@@ -20,7 +25,7 @@ function addRecord(input: ShoppingRecordInput): string {
     id: generateId(),
     location: input.location,
     dateTime: input.dateTime,
-    budgetCentavos: null,
+    budgetCentavos: input.budgetCentavos,
     items: [],
     createdAt: new Date().toISOString(),
   };
@@ -34,10 +39,6 @@ function updateRecord(id: string, input: ShoppingRecordInput) {
 
 function removeRecord(id: string) {
   store.update((prev) => prev.filter((record) => record.id !== id));
-}
-
-function setBudget(id: string, budgetCentavos: number | null) {
-  updateRecordById(id, (record) => ({ ...record, budgetCentavos }));
 }
 
 function addItem(recordId: string, input: ShoppingItemInput) {
@@ -70,7 +71,6 @@ export function useShopping() {
     addRecord,
     updateRecord,
     removeRecord,
-    setBudget,
     addItem,
     updateItem,
     removeItem,

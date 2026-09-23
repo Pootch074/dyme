@@ -12,7 +12,7 @@ import { useAppMaterialColors } from './theme';
 
 import type { useShoppingRecordForm } from '@/hooks/use-shopping-record-form';
 
-/** "New shopping" / "Edit shopping" bottom sheet: location and date & time. */
+/** "New shopping" / "Edit shopping" bottom sheet: location, date & time, and an optional budget. */
 export function ShoppingRecordSheet({ form }: { form: ReturnType<typeof useShoppingRecordForm> }) {
   const colors = useAppMaterialColors();
 
@@ -35,6 +35,15 @@ export function ShoppingRecordSheet({ form }: { form: ReturnType<typeof useShopp
           </Text>
           <DateTimeControl value={form.dateTime} onChange={form.setDateTime} allowFuture />
         </Column>
+        <ControlledTextField
+          value={form.budget}
+          onChangeText={form.setBudget}
+          label="Budget"
+          prefix="₱"
+          keyboardType="decimal"
+          isError={form.budgetError !== null}
+          supportingText={form.budgetError ?? 'Optional. Leave empty for no budget.'}
+        />
         <Button onClick={form.submit} modifiers={[fillMaxWidth()]}>
           <Text>{form.isEditing ? 'Save changes' : 'Create'}</Text>
         </Button>

@@ -2,7 +2,13 @@ import { useState } from 'react';
 
 import { useShopping } from '@/hooks/use-shopping';
 import { centavosToInput, moneyErrorMessage, parseMoneyInput } from '@/utils/money';
-import { budgetStatus, itemTotal, recordTotal, type ShoppingItem } from '@/utils/shopping';
+import {
+  budgetStatus,
+  itemTotal,
+  recordItemCount,
+  recordTotal,
+  type ShoppingItem,
+} from '@/utils/shopping';
 
 type ItemFieldErrors = Partial<Record<'name' | 'price' | 'quantity', string>>;
 
@@ -18,16 +24,17 @@ function parseQuantity(input: string): { ok: true; quantity: number } | { ok: fa
 
 /**
  * Everything the Shopping Details screens need for one record: its derived
- * totals and budget status, plus the item and budget dialogs. Totals are
- * recomputed from the items on every render, so adding, editing or deleting
- * an item updates Total Expenses, Budget Left and the warning together.
+ * totals and budget status, plus the item dialogs. Totals are recomputed from
+ * the items on every render, so adding, editing or deleting an item updates
+ * Total Expenses, Budget Left and the warning together. The budget itself is
+ * edited with the rest of the record (see useShoppingRecordForm).
  */
 export function useShoppingDetails(recordId: string) {
-  const { records, isLoading, addItem, updateItem, removeItem, setBudget, removeRecord } =
-    useShopping();
+  const { records, isLoading, addItem, updateItem, removeItem, removeRecord } = useShopping();
   const record = records.find((candidate) => candidate.id === recordId) ?? null;
 
   const total = record ? recordTotal(record) : 0;
+  const itemCount = record ? recordItemCount(record) : 0;
   const status = budgetStatus(record?.budgetCentavos ?? null, total);
 
   // Item dialog
@@ -41,9 +48,6 @@ export function useShoppingDetails(recordId: string) {
 
   // Other dialogs
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
-  const [isBudgetOpen, setIsBudgetOpen] = useState(false);
-  const [budgetInput, setBudgetInputState] = useState('');
-  const [budgetError, setBudgetError] = useState<string | null>(null);
   const [isDeleteRecordOpen, setIsDeleteRecordOpen] = useState(false);
 
   const parsedPrice = parseMoneyInput(price);
@@ -99,46 +103,23 @@ export function useShoppingDetails(recordId: string) {
     setItemDialog(null);
   };
 
+  /** Adjusts just the quantity of an item, e.g. from the row's +/- stepper. */
+  const setItemQuantity = (itemId: string, quantity: number) => {
+    if (!record) return;
+    const item = record.items.find((candidate) => candidate.id === itemId);
+    if (!item) return;
+    updateItem(record.id, itemId, {
+      name: item.name,
+      priceCentavos: item.priceCentavos,
+      quantity,
+    });
+  };
+
   const pendingDeleteItem = record?.items.find((item) => item.id === pendingDeleteItemId) ?? null;
 
   const confirmDeleteItem = () => {
     if (record && pendingDeleteItemId) removeItem(record.id, pendingDeleteItemId);
     setPendingDeleteItemId(null);
-  };
-
-  const openBudget = () => {
-    setBudgetInputState(
-      record?.budgetCentavos != null ? centavosToInput(record.budgetCentavos) : ''
-    );
-    setBudgetError(null);
-    setIsBudgetOpen(true);
-  };
-
-  const setBudgetInput = (text: string) => {
-    setBudgetInputState(text);
-    if (budgetError) setBudgetError(null);
-  };
-
-  /** Saves the budget; an empty field removes it. Zero isn't a usable budget, so it's rejected. */
-  const saveBudget = () => {
-    if (!record) return;
-    if (!budgetInput.trim()) {
-      setBudget(record.id, null);
-      setIsBudgetOpen(false);
-      return;
-    }
-
-    const parsed = parseMoneyInput(budgetInput);
-    if (!parsed.ok) {
-      setBudgetError(moneyErrorMessage('Budget', parsed.error));
-      return;
-    }
-    if (parsed.centavos === 0) {
-      setBudgetError('Budget must be more than ₱0.00. Leave it empty to remove the budget.');
-      return;
-    }
-    setBudget(record.id, parsed.centavos);
-    setIsBudgetOpen(false);
   };
 
   const confirmDeleteRecord = () => {
@@ -150,6 +131,7 @@ export function useShoppingDetails(recordId: string) {
     record,
     isLoading,
     total,
+    itemCount,
     status,
 
     itemDialog,
@@ -175,19 +157,13 @@ export function useShoppingDetails(recordId: string) {
     openEditItem,
     closeItemDialog,
     saveItem,
+    setItemQuantity,
 
     pendingDeleteItem,
     requestDeleteItem: (itemId: string) => setPendingDeleteItemId(itemId),
     cancelDeleteItem: () => setPendingDeleteItemId(null),
     confirmDeleteItem,
 
-    isBudgetOpen,
-    budgetInput,
-    budgetError,
-    openBudget,
-    closeBudget: () => setIsBudgetOpen(false),
-    setBudgetInput,
-    saveBudget,
 
     isDeleteRecordOpen,
     requestDeleteRecord: () => setIsDeleteRecordOpen(true),

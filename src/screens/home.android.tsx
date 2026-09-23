@@ -1,4 +1,4 @@
-import { Card, Column, Icon, ListItem, Text } from '@expo/ui/jetpack-compose';
+import { Card, Column, Icon, Row, Text } from '@expo/ui/jetpack-compose';
 import {
   clickable,
   clip,
@@ -7,6 +7,7 @@ import {
   paddingAll,
   Shapes,
   verticalScroll,
+  weight,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { type Href, router } from 'expo-router';
 
@@ -64,20 +65,21 @@ export default function HomeScreen() {
                 clip(Shapes.RoundedCorner(12)),
                 clickable(() => router.push(item.href)),
               ]}>
-              <ListItem colors={{ containerColor: '#00000000' }}>
-                <ListItem.LeadingContent>
-                  <Icon source={item.icon} tint={colors.primary} />
-                </ListItem.LeadingContent>
-                <ListItem.HeadlineContent>
+              {/* A plain Row rather than ListItem: Material 3 top-aligns a
+                  ListItem's icons once the description wraps to two lines. */}
+              <Row
+                modifiers={[fillMaxWidth(), paddingAll(16)]}
+                horizontalArrangement={{ spacedBy: 16 }}
+                verticalAlignment="center">
+                <Icon source={item.icon} tint={colors.primary} />
+                <Column modifiers={[weight(1)]} verticalArrangement={{ spacedBy: 2 }}>
                   <Text style={{ typography: 'titleMedium' }}>{item.label}</Text>
-                </ListItem.HeadlineContent>
-                <ListItem.SupportingContent>
-                  <Text>{item.description}</Text>
-                </ListItem.SupportingContent>
-                <ListItem.TrailingContent>
-                  <Icon source={Icons.chevronRight} />
-                </ListItem.TrailingContent>
-              </ListItem>
+                  <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
+                    {item.description}
+                  </Text>
+                </Column>
+                <Icon source={Icons.chevronRight} tint={colors.onSurfaceVariant} />
+              </Row>
             </Card>
           ))}
         </Column>

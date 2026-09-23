@@ -9,7 +9,7 @@ import { ThemedText } from './themed-text';
 import { Spacing } from '@/constants/theme';
 import type { useShoppingRecordForm } from '@/hooks/use-shopping-record-form';
 
-/** "New shopping" / "Edit shopping" dialog: location and date & time. */
+/** "New shopping" / "Edit shopping" dialog: location, date & time, and an optional budget. */
 export function ShoppingRecordDialog({ form }: { form: ReturnType<typeof useShoppingRecordForm> }) {
   return (
     <Dialog visible={form.isOpen} title={form.title} onClose={form.close}>
@@ -39,6 +39,26 @@ export function ShoppingRecordDialog({ form }: { form: ReturnType<typeof useShop
           value={new Date(form.dateTime)}
           onChange={(date) => form.setDateTime(date.toISOString())}
         />
+      </View>
+
+      <View style={styles.fieldGroup}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Budget (₱)
+        </ThemedText>
+        <FormInput
+          value={form.budget}
+          onChangeText={form.setBudget}
+          placeholder="e.g. 5,000.00"
+          accessibilityLabel="Budget, optional"
+          keyboardType="decimal-pad"
+          invalid={form.budgetError !== null}
+        />
+        <ThemedText
+          type="small"
+          themeColor={form.budgetError ? 'danger' : 'textSecondary'}
+          accessibilityLiveRegion="polite">
+          {form.budgetError ?? 'Optional. Leave empty for no budget.'}
+        </ThemedText>
       </View>
 
       <Button label={form.isEditing ? 'Save changes' : 'Create'} onPress={form.submit} />

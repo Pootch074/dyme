@@ -33,6 +33,11 @@ export function recordTotal(record: Pick<ShoppingRecord, 'items'>): number {
   return record.items.reduce((sum, item) => sum + itemTotal(item), 0);
 }
 
+/** Total Items = sum of all quantities, e.g. 3 cans of tuna and 1 bag of rice is 4. */
+export function recordItemCount(record: Pick<ShoppingRecord, 'items'>): number {
+  return record.items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
 export type BudgetStatus =
   | { kind: 'none' }
   | { kind: 'under'; budget: number; left: number }
