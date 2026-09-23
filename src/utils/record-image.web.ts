@@ -1,5 +1,5 @@
 // On web the picker hands back a blob: URL that dies with the page, and there
-// is no app file system, so the image itself is stored on the purchase as a
+// is no app file system, so the image itself is stored on the entry as a
 // data: URL. It's downscaled first to stay well inside localStorage's quota.
 const MAX_DIMENSION = 1024;
 const JPEG_QUALITY = 0.7;
@@ -34,5 +34,5 @@ export function resolveImageUri(imageRef: string): string {
 }
 
 export function deleteSavedImage(_imageRef: string): void {
-  // Nothing to clean up: the data URL goes away with the purchase record.
+  // Nothing to clean up: the data URL goes away with the entry.
 }

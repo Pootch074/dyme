@@ -1,5 +1,6 @@
 import { Feather } from '@react-native-vector-icons/feather';
 import { Image } from 'expo-image';
+import { useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -14,47 +15,53 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/back-button';
-import { DateTimeField } from '@/components/date-time-field';
-import { FormInput } from '@/components/form-input';
 import { ImagePickerField } from '@/components/image-picker-field';
-import { PurchaseRow } from '@/components/purchase-row';
+import { RecordFieldInput } from '@/components/record-field-input';
+import { RecordRow } from '@/components/record-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import {
+  getRecordCategory,
+  type RecordCategory,
+  type RecordCategoryId,
+} from '@/constants/record-categories';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { type Purchase, usePurchases } from '@/hooks/use-purchases';
+import { type RecordEntry, useRecords } from '@/hooks/use-records';
 import { useTheme } from '@/hooks/use-theme';
 import {
   formatDateHeading,
   formatDisplayDate,
   formatRelativeTime,
-  formatTimeOnly,
   nowInPHT,
   toDateOnlyString,
 } from '@/utils/date';
-import { resolveImageUri, savePickedImage } from '@/utils/purchase-image';
+import { fieldDate, formatFieldValue } from '@/utils/record-format';
+import { resolveImageUri, savePickedImage } from '@/utils/record-image';
 
-type PurchaseSection = {
+type EntrySection = {
   title: string;
-  data: Purchase[];
+  data: RecordEntry[];
 };
 
-/** Which face the purchase dialog is showing; null when it's closed. */
+/** Which face the entry dialog is showing; null when it's closed. */
 type DialogMode = 'add' | 'details' | 'edit' | null;
 
-/** Groups purchases into same-day sections, newest creation time first. */
-function groupByCreatedDate(purchases: Purchase[]): PurchaseSection[] {
-  const sorted = [...purchases].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const sections: PurchaseSection[] = [];
+type FieldErrors = Record<string, string>;
+
+/** Groups entries into same-day sections, newest creation time first. */
+function groupByCreatedDate(entries: RecordEntry[]): EntrySection[] {
+  const sorted = [...entries].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const sections: EntrySection[] = [];
   let lastDateKey = '';
 
-  for (const purchase of sorted) {
-    const createdAt = new Date(purchase.createdAt);
+  for (const entry of sorted) {
+    const createdAt = new Date(entry.createdAt);
     const dateKey = toDateOnlyString(createdAt);
 
     if (dateKey === lastDateKey) {
-      sections[sections.length - 1].data.push(purchase);
+      sections[sections.length - 1].data.push(entry);
     } else {
-      sections.push({ title: formatDateHeading(createdAt), data: [purchase] });
+      sections.push({ title: formatDateHeading(createdAt), data: [entry] });
       lastDateKey = dateKey;
     }
   }
@@ -62,39 +69,109 @@ function groupByCreatedDate(purchases: Purchase[]): PurchaseSection[] {
   return sections;
 }
 
-export default function PurchasesScreen() {
-  const { purchases, isLoading, addPurchase, updatePurchase, removePurchase } = usePurchases();
+function entryTitle(category: RecordCategory, entry: RecordEntry): string {
+  return entry.values[category.titleField] || 'Untitled';
+}
+
+/** Starting values for a new entry: now for date-times, defaults where given, blank otherwise. */
+function emptyValues(category: RecordCategory): Record<string, string> {
+  const values: Record<string, string> = {};
+  for (const field of category.fields) {
+    if (field.type === 'datetime') values[field.key] = nowInPHT().toISOString();
+    else values[field.key] = field.defaultValue ?? '';
+  }
+  return values;
+}
+
+/** Trims text values and checks each field's rules; returns the cleaned values or per-field errors. */
+function validate(
+  category: RecordCategory,
+  values: Record<string, string>
+): { values: Record<string, string> } | { errors: FieldErrors } {
+  const cleaned: Record<string, string> = {};
+  const errors: FieldErrors = {};
+
+  for (const field of category.fields) {
+    const value = (values[field.key] ?? '').trim();
+    cleaned[field.key] = value;
+
+    if (!value) {
+      if (field.required) errors[field.key] = `${field.label} is required.`;
+      continue;
+    }
+
+    if (field.type === 'number') {
+      const min = field.min ?? 0;
+      const parsed = Number(value);
+      if (!Number.isInteger(parsed) || parsed < min) {
+        errors[field.key] = `${field.label} must be a whole number of at least ${min}.`;
+      }
+    } else if (field.type === 'amount') {
+      const parsed = Number(value.replace(/,/g, ''));
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        errors[field.key] = `${field.label} must be a valid amount.`;
+      } else {
+        cleaned[field.key] = String(parsed);
+      }
+    } else if (field.type === 'datetime' && new Date(value).getTime() > nowInPHT().getTime()) {
+      errors[field.key] = `${field.label} can't be in the future.`;
+    }
+  }
+
+  return Object.keys(errors).length > 0 ? { errors } : { values: cleaned };
+}
+
+export default function RecordCategoryScreen() {
+  const { category: categoryParam } = useLocalSearchParams<{ category: string }>();
+  const category = getRecordCategory(categoryParam ?? '');
+
+  if (!category) {
+    return (
+      <ThemedView style={styles.container}>
+        <SafeAreaView style={[styles.safeArea, styles.notFound]}>
+          <BackButton />
+          <ThemedText type="subtitle">Category not found</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            Go back and pick a category from Records.
+          </ThemedText>
+        </SafeAreaView>
+      </ThemedView>
+    );
+  }
+
+  return <CategoryEntries category={category} />;
+}
+
+function CategoryEntries({ category }: { category: RecordCategory }) {
+  const { entries: allEntries, isLoading, addEntry, updateEntry, removeEntry } = useRecords();
   const theme = useTheme();
 
   const [dialogMode, setDialogMode] = useState<DialogMode>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [productName, setProductName] = useState('');
-  const [brand, setBrand] = useState('');
-  const [model, setModel] = useState('');
-  const [quantity, setQuantity] = useState('1');
-  const [purchaseDate, setPurchaseDate] = useState(nowInPHT);
+  const [values, setValues] = useState(() => emptyValues(category));
   // What the photo field previews. `imageChanged` tells a kept image (already
   // saved) apart from a freshly picked one that still needs saving.
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [imageChanged, setImageChanged] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
 
-  const today = nowInPHT();
-  const sections = useMemo(() => groupByCreatedDate(purchases), [purchases]);
-  const selectedPurchase = purchases.find((item) => item.id === selectedId) ?? null;
-  const pendingDeletePurchase = purchases.find((item) => item.id === pendingDeleteId) ?? null;
+  const entries = useMemo(
+    () => allEntries.filter((entry) => entry.category === category.id),
+    [allEntries, category.id]
+  );
+  const sections = useMemo(() => groupByCreatedDate(entries), [entries]);
+  const selectedEntry = entries.find((entry) => entry.id === selectedId) ?? null;
+  const pendingDeleteEntry = entries.find((entry) => entry.id === pendingDeleteId) ?? null;
 
-  const updateField = (setter: (value: string) => void) => (text: string) => {
-    setter(text);
+  const handleFieldChange = (key: string) => (value: string) => {
+    setValues((prev) => ({ ...prev, [key]: value }));
+    if (fieldErrors[key]) {
+      setFieldErrors(({ [key]: _cleared, ...rest }) => rest);
+    }
     if (error) setError(null);
-  };
-
-  const handleProductNameChange = (text: string) => {
-    updateField(setProductName)(text);
-    if (nameError && text.trim()) setNameError(null);
   };
 
   const handleImageChange = (uri: string | null) => {
@@ -104,14 +181,10 @@ export default function PurchasesScreen() {
   };
 
   const resetForm = () => {
-    setProductName('');
-    setBrand('');
-    setModel('');
-    setQuantity('1');
-    setPurchaseDate(nowInPHT());
+    setValues(emptyValues(category));
     setImageUri(null);
     setImageChanged(false);
-    setNameError(null);
+    setFieldErrors({});
     setError(null);
   };
 
@@ -127,16 +200,12 @@ export default function PurchasesScreen() {
   };
 
   const handleStartEdit = () => {
-    if (!selectedPurchase) return;
+    if (!selectedEntry) return;
 
-    setProductName(selectedPurchase.productName);
-    setBrand(selectedPurchase.brand);
-    setModel(selectedPurchase.model);
-    setQuantity(String(selectedPurchase.quantity));
-    setPurchaseDate(new Date(selectedPurchase.purchaseDate));
-    setImageUri(selectedPurchase.imageRef ? resolveImageUri(selectedPurchase.imageRef) : null);
+    setValues({ ...emptyValues(category), ...selectedEntry.values });
+    setImageUri(selectedEntry.imageRef ? resolveImageUri(selectedEntry.imageRef) : null);
     setImageChanged(false);
-    setNameError(null);
+    setFieldErrors({});
     setError(null);
     setDialogMode('edit');
   };
@@ -163,39 +232,28 @@ export default function PurchasesScreen() {
   };
 
   const handleConfirmDelete = () => {
-    if (pendingDeleteId) removePurchase(pendingDeleteId);
+    if (pendingDeleteId) removeEntry(pendingDeleteId);
     setPendingDeleteId(null);
   };
 
   const handleSubmit = async () => {
     if (isSaving) return;
 
-    const trimmedName = productName.trim();
-    if (!trimmedName) {
-      setNameError('Product name is required.');
+    const result = validate(category, values);
+    if ('errors' in result) {
+      setFieldErrors(result.errors);
       return;
     }
 
-    const parsedQuantity = Number(quantity);
-    if (!Number.isInteger(parsedQuantity) || parsedQuantity < 1) {
-      setError('Quantity must be a whole number of at least 1.');
-      return;
-    }
-
-    if (purchaseDate.getTime() > nowInPHT().getTime()) {
-      setError("Purchase date can't be in the future.");
-      return;
-    }
-
-    const isEditing = dialogMode === 'edit' && selectedPurchase !== null;
-    let imageRef: string | null = isEditing ? (selectedPurchase.imageRef ?? null) : null;
+    const isEditing = dialogMode === 'edit' && selectedEntry !== null;
+    let imageRef: string | null = isEditing ? (selectedEntry.imageRef ?? null) : null;
     if (imageChanged) {
       if (imageUri) {
         setIsSaving(true);
         try {
           imageRef = await savePickedImage(imageUri);
         } catch (caught) {
-          console.warn('Failed to save purchase photo', caught);
+          console.warn('Failed to save entry photo', caught);
           setError("Couldn't save the photo. Try another one.");
           return;
         } finally {
@@ -206,21 +264,19 @@ export default function PurchasesScreen() {
       }
     }
 
+    // Keep values from fields this category no longer shows (e.g. from older
+    // versions of the form) instead of silently dropping them.
     const input = {
-      productName: trimmedName,
-      brand: brand.trim(),
-      model: model.trim(),
-      quantity: parsedQuantity,
-      purchaseDate,
+      values: { ...(isEditing ? selectedEntry.values : {}), ...result.values },
       imageRef,
     };
 
     if (isEditing) {
-      updatePurchase(selectedPurchase.id, input);
+      updateEntry(selectedEntry.id, input);
       resetForm();
       setDialogMode('details');
     } else {
-      addPurchase(input);
+      addEntry(category.id as RecordCategoryId, input);
       setDialogMode(null);
       resetForm();
     }
@@ -229,10 +285,12 @@ export default function PurchasesScreen() {
   const isFormMode = dialogMode === 'add' || dialogMode === 'edit';
   const dialogTitle =
     dialogMode === 'add'
-      ? 'Add purchase'
+      ? 'Add entry'
       : dialogMode === 'edit'
-        ? 'Edit purchase'
-        : (selectedPurchase?.productName ?? '');
+        ? 'Edit entry'
+        : selectedEntry
+          ? entryTitle(category, selectedEntry)
+          : '';
 
   return (
     <ThemedView style={styles.container}>
@@ -241,7 +299,12 @@ export default function PurchasesScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PurchaseRow purchase={item} onOpen={handleOpen} onRemove={handleRequestRemove} />
+            <RecordRow
+              id={item.id}
+              title={entryTitle(category, item)}
+              onOpen={handleOpen}
+              onRemove={handleRequestRemove}
+            />
           )}
           renderSectionHeader={({ section }) => (
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
@@ -253,16 +316,18 @@ export default function PurchasesScreen() {
           ListHeaderComponent={
             <>
               <BackButton />
-              <ThemedText type="subtitle">Purchases</ThemedText>
+              <ThemedText type="subtitle">
+                {category.emoji} {category.label}
+              </ThemedText>
               <ThemedText type="small" themeColor="textSecondary" style={styles.subtitleText}>
-                Track how long ago you bought something.
+                {category.description}
               </ThemedText>
             </>
           }
           ListEmptyComponent={
             !isLoading ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.emptyText}>
-                No purchases tracked yet. Tap + to add your first one.
+                No entries yet. Tap + to add your first one.
               </ThemedText>
             ) : null
           }
@@ -271,7 +336,7 @@ export default function PurchasesScreen() {
         <Pressable
           onPress={handleAddNew}
           accessibilityRole="button"
-          accessibilityLabel="Add purchase"
+          accessibilityLabel={`Add ${category.label} entry`}
           style={({ pressed }) => [styles.fab, pressed && styles.fabPressed]}>
           <Feather name="plus" size={26} color="#ffffff" />
         </Pressable>
@@ -294,9 +359,16 @@ export default function PurchasesScreen() {
 
           <ThemedView type="backgroundElement" style={styles.dialog}>
             <View style={styles.dialogHeader}>
-              <ThemedText type="subtitle" style={styles.dialogTitle} numberOfLines={1}>
-                {dialogTitle}
-              </ThemedText>
+              <View style={styles.dialogTitle}>
+                <ThemedText type="subtitle" numberOfLines={1}>
+                  {dialogTitle}
+                </ThemedText>
+                {isFormMode && (
+                  <ThemedText type="small" themeColor="textSecondary">
+                    {category.emoji} {category.label}
+                  </ThemedText>
+                )}
+              </View>
               <Pressable
                 onPress={handleCloseDialog}
                 hitSlop={8}
@@ -307,8 +379,8 @@ export default function PurchasesScreen() {
               </Pressable>
             </View>
 
-            {dialogMode === 'details' && selectedPurchase && (
-              <PurchaseDetails purchase={selectedPurchase} onEdit={handleStartEdit} />
+            {dialogMode === 'details' && selectedEntry && (
+              <EntryDetails category={category} entry={selectedEntry} onEdit={handleStartEdit} />
             )}
 
             {isFormMode && (
@@ -317,34 +389,15 @@ export default function PurchasesScreen() {
                 contentContainerStyle={styles.dialogForm}>
                 <ImagePickerField value={imageUri} onChange={handleImageChange} />
 
-                <View style={styles.fieldGroup}>
-                  <FormInput
-                    value={productName}
-                    onChangeText={handleProductNameChange}
-                    placeholder="Product name *"
-                    accessibilityLabel="Product name, required"
-                    invalid={nameError !== null}
+                {category.fields.map((field) => (
+                  <RecordFieldInput
+                    key={field.key}
+                    field={field}
+                    value={values[field.key] ?? ''}
+                    onChange={handleFieldChange(field.key)}
+                    error={fieldErrors[field.key]}
                   />
-                  {nameError && (
-                    <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
-                      {nameError}
-                    </ThemedText>
-                  )}
-                </View>
-                <FormInput value={brand} onChangeText={updateField(setBrand)} placeholder="Brand" />
-                <FormInput value={model} onChangeText={updateField(setModel)} placeholder="Model" />
-                <FormInput
-                  value={quantity}
-                  onChangeText={updateField(setQuantity)}
-                  placeholder="Quantity"
-                  keyboardType="numeric"
-                />
-
-                <DateTimeField
-                  value={purchaseDate}
-                  onChange={setPurchaseDate}
-                  maximumDate={today}
-                />
+                ))}
 
                 {error && (
                   <ThemedText type="small" themeColor="danger">
@@ -369,15 +422,15 @@ export default function PurchasesScreen() {
                     onPress={handleSubmit}
                     disabled={isSaving}
                     style={({ pressed }) => [
-                      styles.addButton,
+                      styles.primaryButton,
                       (pressed || isSaving) && styles.pressed,
                     ]}>
-                    <ThemedText type="smallBold" style={styles.addButtonText}>
+                    <ThemedText type="smallBold" style={styles.primaryButtonText}>
                       {isSaving
-                        ? 'Saving…'
+                        ? 'Savingâ€¦'
                         : dialogMode === 'edit'
                           ? 'Save changes'
-                          : 'Add purchase'}
+                          : 'Add entry'}
                     </ThemedText>
                   </Pressable>
                 </View>
@@ -388,7 +441,7 @@ export default function PurchasesScreen() {
       </Modal>
 
       <Modal
-        visible={pendingDeletePurchase !== null}
+        visible={pendingDeleteEntry !== null}
         transparent
         animationType="fade"
         onRequestClose={handleCancelDelete}>
@@ -402,11 +455,11 @@ export default function PurchasesScreen() {
 
           <ThemedView type="backgroundElement" style={styles.confirmDialog}>
             <ThemedText type="subtitle" numberOfLines={1}>
-              Remove purchase?
+              Remove entry?
             </ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.confirmMessage}>
-              {pendingDeletePurchase
-                ? `"${pendingDeletePurchase.productName}" will be permanently removed.`
+              {pendingDeleteEntry
+                ? `"${entryTitle(category, pendingDeleteEntry)}" will be permanently removed.`
                 : ''}
             </ThemedText>
 
@@ -435,34 +488,35 @@ export default function PurchasesScreen() {
   );
 }
 
-type PurchaseDetailsProps = {
-  purchase: Purchase;
+type EntryDetailsProps = {
+  category: RecordCategory;
+  entry: RecordEntry;
   onEdit: () => void;
 };
 
-/** Read-only view of every saved field of a purchase, with a way into edit mode. */
-function PurchaseDetails({ purchase, onEdit }: PurchaseDetailsProps) {
-  const purchaseDate = new Date(purchase.purchaseDate);
-  const details: { label: string; value: string }[] = [
-    { label: 'Brand', value: purchase.brand || '—' },
-    { label: 'Model', value: purchase.model || '—' },
-    { label: 'Quantity', value: String(purchase.quantity) },
-    {
-      label: 'Purchased',
-      value: `${formatDisplayDate(purchaseDate)}, ${formatTimeOnly(purchaseDate)}`,
-    },
-    { label: 'Bought', value: formatRelativeTime(purchaseDate) },
-    { label: 'Added', value: formatDisplayDate(new Date(purchase.createdAt)) },
-  ];
+/** Read-only view of every field of an entry, with a way into edit mode. */
+function EntryDetails({ category, entry, onEdit }: EntryDetailsProps) {
+  const details: { label: string; value: string }[] = [];
+  for (const field of category.fields) {
+    if (field.key === category.titleField) continue; // Already the dialog title.
+    const value = entry.values[field.key] ?? '';
+    details.push({ label: field.label, value: formatFieldValue(field, value) });
+
+    const date = fieldDate(field, value);
+    if (field.relativeLabel && date) {
+      details.push({ label: field.relativeLabel, value: formatRelativeTime(date) });
+    }
+  }
+  details.push({ label: 'Added', value: formatDisplayDate(new Date(entry.createdAt)) });
 
   return (
     <ScrollView contentContainerStyle={styles.dialogForm}>
-      {purchase.imageRef ? (
+      {entry.imageRef ? (
         <Image
-          source={{ uri: resolveImageUri(purchase.imageRef) }}
+          source={{ uri: resolveImageUri(entry.imageRef) }}
           style={styles.detailImage}
           contentFit="cover"
-          accessibilityLabel={`Photo of ${purchase.productName}`}
+          accessibilityLabel={`Photo of ${entryTitle(category, entry)}`}
         />
       ) : null}
 
@@ -481,9 +535,13 @@ function PurchaseDetails({ purchase, onEdit }: PurchaseDetailsProps) {
 
       <Pressable
         onPress={onEdit}
-        style={({ pressed }) => [styles.addButton, styles.editButton, pressed && styles.pressed]}>
+        style={({ pressed }) => [
+          styles.primaryButton,
+          styles.editButton,
+          pressed && styles.pressed,
+        ]}>
         <Feather name="edit-2" size={16} color="#ffffff" />
-        <ThemedText type="smallBold" style={styles.addButtonText}>
+        <ThemedText type="smallBold" style={styles.primaryButtonText}>
           Edit
         </ThemedText>
       </Pressable>
@@ -501,6 +559,10 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: MaxContentWidth,
   },
+  notFound: {
+    padding: Spacing.four,
+    gap: Spacing.one,
+  },
   listContent: {
     paddingHorizontal: Spacing.four,
     paddingTop: Spacing.four,
@@ -514,12 +576,15 @@ const styles = StyleSheet.create({
   sectionHeader: {
     marginTop: Spacing.three,
   },
-  addButton: {
+  primaryButton: {
     flex: 1,
     backgroundColor: '#3c87f7',
     borderRadius: Spacing.two,
     paddingVertical: Spacing.two,
     alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#ffffff',
   },
   secondaryButton: {
     flex: 1,
@@ -553,9 +618,6 @@ const styles = StyleSheet.create({
   detailValue: {
     flexShrink: 1,
     textAlign: 'right',
-  },
-  addButtonText: {
-    color: '#ffffff',
   },
   pressed: {
     opacity: 0.7,
@@ -614,9 +676,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  fieldGroup: {
-    gap: Spacing.one,
   },
   dialogForm: {
     padding: Spacing.three,

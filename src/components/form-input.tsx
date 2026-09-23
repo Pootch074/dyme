@@ -12,6 +12,7 @@ type FormInputProps = {
   invalid?: boolean;
   /** When false the value is shown read-only, without the input's filled background. */
   editable?: boolean;
+  multiline?: boolean;
   accessibilityLabel?: string;
 };
 
@@ -22,6 +23,7 @@ export function FormInput({
   keyboardType,
   invalid,
   editable = true,
+  multiline = false,
   accessibilityLabel,
 }: FormInputProps) {
   const theme = useTheme();
@@ -34,9 +36,11 @@ export function FormInput({
       placeholderTextColor={theme.textSecondary}
       keyboardType={keyboardType}
       editable={editable}
+      multiline={multiline}
       accessibilityLabel={accessibilityLabel ?? placeholder}
       style={[
         styles.input,
+        multiline && styles.multiline,
         {
           color: theme.text,
           backgroundColor: editable ? theme.backgroundSelected : 'transparent',
@@ -54,5 +58,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.two,
     borderWidth: 1,
+  },
+  multiline: {
+    minHeight: 88,
+    textAlignVertical: 'top',
   },
 });

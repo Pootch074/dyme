@@ -5,27 +5,27 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
-import type { Purchase } from '@/hooks/use-purchases';
 
-type PurchaseRowProps = {
-  purchase: Purchase;
+type RecordRowProps = {
+  id: string;
+  title: string;
   onOpen: (id: string) => void;
   onRemove: (id: string) => void;
 };
 
-/** Compact purchase row: just the name and a delete action. Tapping it opens the details dialog. */
-export function PurchaseRow({ purchase, onOpen, onRemove }: PurchaseRowProps) {
+/** Compact record row: just the entry's name and a delete action. Tapping it opens the details dialog. */
+export function RecordRow({ id, title, onOpen, onRemove }: RecordRowProps) {
   return (
     <ThemedView type="backgroundElement" style={styles.row}>
       {/* Fills the row beside the delete button; kept a sibling of it because
           nesting one pressable in another renders invalid <button>s on web. */}
       <Pressable
-        onPress={() => onOpen(purchase.id)}
+        onPress={() => onOpen(id)}
         accessibilityRole="button"
-        accessibilityLabel={`View ${purchase.productName}`}
+        accessibilityLabel={`View ${title}`}
         style={({ pressed }) => [styles.openArea, pressed && styles.pressed]}>
         <ThemedText numberOfLines={1} style={styles.name}>
-          {purchase.productName}
+          {title}
         </ThemedText>
       </Pressable>
 
@@ -33,8 +33,8 @@ export function PurchaseRow({ purchase, onOpen, onRemove }: PurchaseRowProps) {
         icon="trash-2"
         tooltip="Remove"
         tone="danger"
-        accessibilityLabel={`Remove ${purchase.productName}`}
-        onPress={() => onRemove(purchase.id)}
+        accessibilityLabel={`Remove ${title}`}
+        onPress={() => onRemove(id)}
       />
     </ThemedView>
   );

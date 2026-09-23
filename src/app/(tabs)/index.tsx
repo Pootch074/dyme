@@ -1,15 +1,18 @@
-import { Feather, type FeatherIconName } from '@react-native-vector-icons/feather';
-import { Link } from 'expo-router';
-import { Pressable, StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Feather,
+  type FeatherIconName,
+} from "@react-native-vector-icons/feather";
+import { type Href, Link } from "expo-router";
+import { Pressable, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { ThemedText } from "@/components/themed-text";
+import { ThemedView } from "@/components/themed-view";
+import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { useTheme } from "@/hooks/use-theme";
 
 type NavItem = {
-  href: '/purchases' | '/dtr';
+  href: Href;
   label: string;
   description: string;
   icon: FeatherIconName;
@@ -17,16 +20,18 @@ type NavItem = {
 
 const NAV_ITEMS: NavItem[] = [
   {
-    href: '/purchases',
-    label: 'Purchases',
-    description: 'Track what you bought and when',
-    icon: 'shopping-bag',
+    // Typed routes lists this index route as "/records/index", which 404s at
+    // runtime; "/records" is correct. Same upstream issue as "/" in app-tabs.web.
+    href: "/records" as Href,
+    label: "Records",
+    description: "Keep track of your important personal records",
+    icon: "shopping-bag",
   },
   {
-    href: '/dtr',
-    label: 'DTR',
-    description: 'Daily time record',
-    icon: 'clock',
+    href: "/dtr",
+    label: "DTR",
+    description: "Daily time record",
+    icon: "clock",
   },
 ];
 
@@ -37,25 +42,35 @@ export default function HomeScreen() {
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
         <ThemedText type="subtitle">Home</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.subtitleText}>
+        <ThemedText
+          type="small"
+          themeColor="textSecondary"
+          style={styles.subtitleText}
+        >
           Jump into a section.
         </ThemedText>
 
         <View style={styles.list}>
           {NAV_ITEMS.map((item) => (
-            <Link key={item.href} href={item.href} asChild>
+            <Link key={item.label} href={item.href} asChild>
               <Pressable style={({ pressed }) => pressed && styles.pressed}>
                 <ThemedView type="backgroundElement" style={styles.row}>
                   <View style={styles.rowIcon}>
                     <Feather name={item.icon} size={20} color={theme.text} />
                   </View>
                   <View style={styles.rowText}>
-                    <ThemedText style={styles.rowLabel}>{item.label}</ThemedText>
+                    <ThemedText style={styles.rowLabel}>
+                      {item.label}
+                    </ThemedText>
                     <ThemedText type="small" themeColor="textSecondary">
                       {item.description}
                     </ThemedText>
                   </View>
-                  <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+                  <Feather
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
                 </ThemedView>
               </Pressable>
             </Link>
@@ -69,10 +84,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
   },
   safeArea: {
-    width: '100%',
+    width: "100%",
     maxWidth: MaxContentWidth,
     padding: Spacing.four,
   },
@@ -84,8 +99,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderRadius: Spacing.three,
     padding: Spacing.three,
     gap: Spacing.three,
@@ -94,16 +109,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(60, 135, 247, 0.15)',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(60, 135, 247, 0.15)",
   },
   rowText: {
     flex: 1,
     gap: Spacing.half,
   },
   rowLabel: {
-    fontWeight: '600',
+    fontWeight: "600",
   },
   pressed: {
     opacity: 0.7,

@@ -1,8 +1,9 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-// Purchases store only the image's file name, not its full URI: on iOS the
+// Records store only the image's file name, not its full URI: on iOS the
 // app's document directory path changes between installs/updates, so absolute
 // file:// URIs saved today can point nowhere tomorrow.
+// Named from when only purchases had photos; don't rename, existing photos live here.
 const IMAGE_DIR_NAME = 'purchase-images';
 
 function imageDirectory(): Directory {
@@ -12,7 +13,7 @@ function imageDirectory(): Directory {
 /**
  * Copies a freshly picked/captured image (which lives in a temporary cache the
  * OS may purge) into permanent app storage. Returns the reference to save on
- * the purchase.
+ * the entry.
  */
 export async function savePickedImage(pickedUri: string): Promise<string> {
   const directory = imageDirectory();
@@ -35,6 +36,6 @@ export function deleteSavedImage(imageRef: string): void {
     const file = new File(imageDirectory(), imageRef);
     if (file.exists) file.delete();
   } catch (error) {
-    console.warn('Failed to delete purchase image', error);
+    console.warn('Failed to delete record image', error);
   }
 }

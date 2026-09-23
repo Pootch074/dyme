@@ -48,7 +48,8 @@ function ThemedStack() {
       <Stack
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="purchases" />
+        <Stack.Screen name="records/index" />
+        <Stack.Screen name="records/[category]" />
         <Stack.Screen name="dtr" />
         <Stack.Screen name="profile" />
       </Stack>
