@@ -1,3 +1,16 @@
+const PHT_UTC_OFFSET_MINUTES = 8 * 60;
+
+/**
+ * The current Philippine time (PHT, UTC+8), from the device clock. The result's
+ * local fields (getHours etc.) read as the PHT wall clock, so it can be fed to
+ * the same local-time formatters and pickers as any other Date. On a device
+ * already set to PHT this is just `new Date()`.
+ */
+export function nowInPHT(): Date {
+  const now = new Date();
+  return new Date(now.getTime() + (PHT_UTC_OFFSET_MINUTES + now.getTimezoneOffset()) * 60_000);
+}
+
 /** Formats a Date as a local, timezone-safe YYYY-MM-DD string (no UTC conversion). */
 export function toDateOnlyString(date: Date): string {
   const year = date.getFullYear();

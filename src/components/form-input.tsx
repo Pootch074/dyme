@@ -8,9 +8,19 @@ type FormInputProps = {
   onChangeText: (text: string) => void;
   placeholder: string;
   keyboardType?: TextInputProps['keyboardType'];
+  /** Outlines the field in the danger color, e.g. when a required value is missing. */
+  invalid?: boolean;
+  accessibilityLabel?: string;
 };
 
-export function FormInput({ value, onChangeText, placeholder, keyboardType }: FormInputProps) {
+export function FormInput({
+  value,
+  onChangeText,
+  placeholder,
+  keyboardType,
+  invalid,
+  accessibilityLabel,
+}: FormInputProps) {
   const theme = useTheme();
 
   return (
@@ -20,7 +30,15 @@ export function FormInput({ value, onChangeText, placeholder, keyboardType }: Fo
       placeholder={placeholder}
       placeholderTextColor={theme.textSecondary}
       keyboardType={keyboardType}
-      style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundSelected }]}
+      accessibilityLabel={accessibilityLabel ?? placeholder}
+      style={[
+        styles.input,
+        {
+          color: theme.text,
+          backgroundColor: theme.backgroundSelected,
+          borderColor: invalid ? theme.danger : 'transparent',
+        },
+      ]}
     />
   );
 }
@@ -31,5 +49,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.two,
     paddingHorizontal: Spacing.three,
     borderRadius: Spacing.two,
+    borderWidth: 1,
   },
 });

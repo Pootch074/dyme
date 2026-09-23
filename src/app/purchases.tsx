@@ -21,7 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { type Purchase, usePurchases } from '@/hooks/use-purchases';
 import { useTheme } from '@/hooks/use-theme';
-import { formatDateHeading, toDateOnlyString } from '@/utils/date';
+import { formatDateHeading, nowInPHT, toDateOnlyString } from '@/utils/date';
 
 type PurchaseSection = {
   title: string;
@@ -60,10 +60,11 @@ export default function PurchasesScreen() {
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [quantity, setQuantity] = useState('1');
-  const [purchaseDate, setPurchaseDate] = useState(() => new Date());
+  const [purchaseDate, setPurchaseDate] = useState(nowInPHT);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const today = new Date();
+  const today = nowInPHT();
   const sections = useMemo(() => groupByCreatedDate(purchases), [purchases]);
   const pendingDeletePurchase = purchases.find((item) => item.id === pendingDeleteId) ?? null;
 
@@ -72,12 +73,18 @@ export default function PurchasesScreen() {
     if (error) setError(null);
   };
 
+  const handleProductNameChange = (text: string) => {
+    updateField(setProductName)(text);
+    if (nameError && text.trim()) setNameError(null);
+  };
+
   const resetForm = () => {
     setProductName('');
     setBrand('');
     setModel('');
     setQuantity('1');
-    setPurchaseDate(new Date());
+    setPurchaseDate(nowInPHT());
+    setNameError(null);
     setError(null);
   };
 
@@ -97,6 +104,7 @@ export default function PurchasesScreen() {
     setModel(purchase.model);
     setQuantity(String(purchase.quantity));
     setPurchaseDate(new Date(purchase.purchaseDate));
+    setNameError(null);
     setError(null);
     setIsDialogOpen(true);
   };
@@ -123,7 +131,7 @@ export default function PurchasesScreen() {
   const handleSubmit = () => {
     const trimmedName = productName.trim();
     if (!trimmedName) {
-      setError('Enter a product name.');
+      setNameError('Product name is required.');
       return;
     }
 
@@ -133,7 +141,7 @@ export default function PurchasesScreen() {
       return;
     }
 
-    if (purchaseDate.getTime() > Date.now()) {
+    if (purchaseDate.getTime() > nowInPHT().getTime()) {
       setError("Purchase date can't be in the future.");
       return;
     }
@@ -233,11 +241,20 @@ export default function PurchasesScreen() {
             <ScrollView
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={styles.dialogForm}>
-              <FormInput
-                value={productName}
-                onChangeText={updateField(setProductName)}
-                placeholder="Product name"
-              />
+              <View style={styles.fieldGroup}>
+                <FormInput
+                  value={productName}
+                  onChangeText={handleProductNameChange}
+                  placeholder="Product name *"
+                  accessibilityLabel="Product name, required"
+                  invalid={nameError !== null}
+                />
+                {nameError && (
+                  <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
+                    {nameError}
+                  </ThemedText>
+                )}
+              </View>
               <FormInput value={brand} onChangeText={updateField(setBrand)} placeholder="Brand" />
               <FormInput value={model} onChangeText={updateField(setModel)} placeholder="Model" />
               <FormInput
@@ -404,6 +421,9 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  fieldGroup: {
+    gap: Spacing.one,
   },
   dialogForm: {
     padding: Spacing.three,

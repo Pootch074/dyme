@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { useColorScheme as useRNColorScheme } from 'react-native';
 
-/**
- * To support static rendering, this value needs to be re-calculated on the client side for web
- */
-export function useColorScheme() {
-  const [hasHydrated, setHasHydrated] = useState(false);
+const subscribeNoop = () => () => {};
 
-  useEffect(() => {
-    setHasHydrated(true);
-  }, []);
+/**
+ * To support static rendering, this value needs to be re-calculated on the client side for web.
+ * The server snapshot reports "not hydrated", so static HTML always renders light.
+ */
+export function useSystemColorScheme() {
+  const hasHydrated = useSyncExternalStore(
+    subscribeNoop,
+    () => true,
+    () => false,
+  );
 
   const colorScheme = useRNColorScheme();
 
