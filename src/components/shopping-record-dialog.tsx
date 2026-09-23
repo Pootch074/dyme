@@ -1,16 +1,20 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from "react-native";
 
-import { Button } from './button';
-import { DateTimeField } from './date-time-field';
-import { Dialog } from './dialog';
-import { FormInput } from './form-input';
-import { ThemedText } from './themed-text';
+import { Button } from "./button";
+import { DateTimeField } from "./date-time-field";
+import { Dialog } from "./dialog";
+import { FormInput } from "./form-input";
+import { ThemedText } from "./themed-text";
 
-import { Spacing } from '@/constants/theme';
-import type { useShoppingRecordForm } from '@/hooks/use-shopping-record-form';
+import { Spacing } from "@/constants/theme";
+import type { useShoppingRecordForm } from "@/hooks/use-shopping-record-form";
 
 /** "New shopping" / "Edit shopping" dialog: location, date & time, and an optional budget. */
-export function ShoppingRecordDialog({ form }: { form: ReturnType<typeof useShoppingRecordForm> }) {
+export function ShoppingRecordDialog({
+  form,
+}: {
+  form: ReturnType<typeof useShoppingRecordForm>;
+}) {
   return (
     <Dialog visible={form.isOpen} title={form.title} onClose={form.close}>
       <View style={styles.fieldGroup}>
@@ -55,13 +59,17 @@ export function ShoppingRecordDialog({ form }: { form: ReturnType<typeof useShop
         />
         <ThemedText
           type="small"
-          themeColor={form.budgetError ? 'danger' : 'textSecondary'}
-          accessibilityLiveRegion="polite">
-          {form.budgetError ?? 'Optional. Leave empty for no budget.'}
+          themeColor={form.budgetError ? "danger" : "textSecondary"}
+          accessibilityLiveRegion="polite"
+        >
+          {form.budgetError ?? "Optional. Leave empty for no budget."}
         </ThemedText>
       </View>
 
-      <Button label={form.isEditing ? 'Save changes' : 'Create'} onPress={form.submit} />
+      <Button
+        label={form.isEditing ? "Save changes" : "Create"}
+        onPress={form.submit}
+      />
     </Dialog>
   );
 }
