@@ -1,8 +1,7 @@
 import type { RecordCategory, RecordField } from '@/constants/record-categories';
 import type { RecordEntry } from '@/hooks/use-records';
 import { formatDisplayDate, formatRelativeTime, formatTimeOnly, parseDateOnly } from '@/utils/date';
-
-const pesoFormatter = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' });
+import { formatPeso } from '@/utils/money';
 
 /** The Date a date/datetime field's stored value refers to, or null when empty or not a date field. */
 export function fieldDate(field: RecordField, value: string): Date | null {
@@ -19,7 +18,7 @@ export function formatFieldValue(field: RecordField, value: string): string {
   switch (field.type) {
     case 'amount': {
       const amount = Number(value);
-      return Number.isFinite(amount) ? pesoFormatter.format(amount) : value;
+      return Number.isFinite(amount) ? formatPeso(amount) : value;
     }
     case 'date':
       return formatDisplayDate(parseDateOnly(value));

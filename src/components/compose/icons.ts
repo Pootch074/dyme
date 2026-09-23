@@ -20,5 +20,8 @@ export const Icons = {
   person: require('@/assets/icons/person.xml'),
   photoCamera: require('@/assets/icons/photo_camera.xml'),
   schedule: require('@/assets/icons/schedule.xml'),
+  shoppingCart: require('@/assets/icons/shopping_cart.xml'),
   upload: require('@/assets/icons/upload.xml'),
+  wallet: require('@/assets/icons/account_balance_wallet.xml'),
+  warning: require('@/assets/icons/warning.xml'),
 } as const;

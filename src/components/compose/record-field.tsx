@@ -171,10 +171,12 @@ type DateTimeControlProps = {
   /** ISO timestamp (always set for date-time fields). */
   value: string;
   onChange: (value: string) => void;
+  /** Whether days after today can be picked (default: no). */
+  allowFuture?: boolean;
 };
 
-/** Date + time buttons opening the Material date and time pickers; no future dates. */
-function DateTimeControl({ value, onChange }: DateTimeControlProps) {
+/** Date + time buttons opening the Material date and time pickers. */
+export function DateTimeControl({ value, onChange, allowFuture = false }: DateTimeControlProps) {
   const [openPicker, setOpenPicker] = useState<'date' | 'time' | null>(null);
   const date = value ? new Date(value) : nowInPHT();
 
@@ -194,7 +196,7 @@ function DateTimeControl({ value, onChange }: DateTimeControlProps) {
       {openPicker === 'date' ? (
         <DatePickerDialog
           initialDate={toPickerMillisString(toDateOnlyString(date))}
-          selectableDates={{ end: nowInPHT() }}
+          selectableDates={allowFuture ? undefined : { end: nowInPHT() }}
           onDateSelected={(picked) => {
             setOpenPicker(null);
             onChange(withDatePart(date, fromPickerDate(picked)).toISOString());

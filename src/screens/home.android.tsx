@@ -31,6 +31,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: Icons.folder,
   },
   {
+    // Same typed-routes issue as "/records" above.
+    href: '/shopping' as Href,
+    label: 'Shopping Calculator',
+    description: 'Record your shopping and track your budget',
+    icon: Icons.shoppingCart,
+  },
+  {
     href: '/dtr',
     label: 'DTR',
     description: 'Daily time record',

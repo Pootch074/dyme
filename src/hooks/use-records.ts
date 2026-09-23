@@ -1,7 +1,5 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useSyncExternalStore } from 'react';
-
 import type { RecordCategoryId } from '@/constants/record-categories';
+import { createPersistentStore, generateId, readStoredArray } from '@/utils/persistent-store';
 import { deleteSavedImage } from '@/utils/record-image';
 
 export type RecordEntry = {
@@ -55,64 +53,18 @@ function fromLegacyPurchase(purchase: LegacyPurchase): RecordEntry {
 }
 
 async function loadEntries(): Promise<RecordEntry[]> {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
-  if (raw) {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  }
+  const stored = await readStoredArray<RecordEntry>(STORAGE_KEY);
+  if (stored) return stored;
 
-  const legacyRaw = await AsyncStorage.getItem(LEGACY_PURCHASES_KEY);
-  if (!legacyRaw) return [];
-  const legacy = JSON.parse(legacyRaw);
-  return Array.isArray(legacy) ? legacy.map(fromLegacyPurchase) : [];
+  const legacy = await readStoredArray<LegacyPurchase>(LEGACY_PURCHASES_KEY);
+  return legacy ? legacy.map(fromLegacyPurchase) : [];
 }
 
-function generateId(): string {
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-}
-
-// One store shared by every screen using `useRecords`, so the category grid
-// and a category's list always agree (e.g. counts update after adding).
-type StoreState = { entries: RecordEntry[]; isLoading: boolean };
-
-let state: StoreState = { entries: [], isLoading: true };
-let loadStarted = false;
-const listeners = new Set<() => void>();
-
-function setState(next: StoreState) {
-  state = next;
-  listeners.forEach((listener) => listener());
-}
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  if (!loadStarted) {
-    loadStarted = true;
-    loadEntries()
-      .then((entries) => setState({ entries, isLoading: false }))
-      .catch((error) => {
-        console.warn('Failed to load records from storage', error);
-        setState({ ...state, isLoading: false });
-      });
-  }
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function getSnapshot() {
-  return state;
-}
-
-function updateEntries(update: (prev: RecordEntry[]) => RecordEntry[]) {
-  // Writes before the initial load finishes would clobber stored data.
-  if (state.isLoading) return;
-  const entries = update(state.entries);
-  setState({ ...state, entries });
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries)).catch((error) => {
-    console.warn('Failed to save records to storage', error);
-  });
-}
+const store = createPersistentStore<RecordEntry>({
+  storageKey: STORAGE_KEY,
+  load: loadEntries,
+  label: 'records',
+});
 
 function addEntry(category: RecordCategoryId, input: RecordEntryInput) {
   const entry: RecordEntry = {
@@ -122,16 +74,16 @@ function addEntry(category: RecordCategoryId, input: RecordEntryInput) {
     imageRef: input.imageRef,
     createdAt: new Date().toISOString(),
   };
-  updateEntries((prev) => [...prev, entry]);
+  store.update((prev) => [...prev, entry]);
 }
 
 function updateEntry(id: string, input: RecordEntryInput) {
-  const previousImageRef = state.entries.find((entry) => entry.id === id)?.imageRef;
+  const previousImageRef = store.getItems().find((entry) => entry.id === id)?.imageRef;
   if (previousImageRef && previousImageRef !== input.imageRef) {
     deleteSavedImage(previousImageRef);
   }
 
-  updateEntries((prev) =>
+  store.update((prev) =>
     prev.map((entry) =>
       entry.id === id ? { ...entry, values: input.values, imageRef: input.imageRef } : entry
     )
@@ -139,14 +91,14 @@ function updateEntry(id: string, input: RecordEntryInput) {
 }
 
 function removeEntry(id: string) {
-  const imageRef = state.entries.find((entry) => entry.id === id)?.imageRef;
+  const imageRef = store.getItems().find((entry) => entry.id === id)?.imageRef;
   if (imageRef) deleteSavedImage(imageRef);
 
-  updateEntries((prev) => prev.filter((entry) => entry.id !== id));
+  store.update((prev) => prev.filter((entry) => entry.id !== id));
 }
 
-/** Every record entry, across all categories, persisted in AsyncStorage. */
+/** Every record entry, across all categories, persisted in AsyncStorage (shared by all screens). */
 export function useRecords() {
-  const { entries, isLoading } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const { items: entries, isLoading } = store.useStore();
   return { entries, isLoading, addEntry, updateEntry, removeEntry };
 }

@@ -50,6 +50,8 @@ function ThemedStack() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="records/index" />
         <Stack.Screen name="records/[category]" />
+        <Stack.Screen name="shopping/index" />
+        <Stack.Screen name="shopping/[id]" />
         <Stack.Screen name="dtr" />
         <Stack.Screen name="profile" />
       </Stack>
