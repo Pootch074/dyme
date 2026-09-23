@@ -36,7 +36,14 @@
       ],
       "@react-native-community/datetimepicker",
       "@react-native-vector-icons/feather",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos so you can attach a picture to a purchase.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera so you can photograph a purchase."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

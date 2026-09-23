@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
+import { deleteSavedImage } from '@/utils/purchase-image';
+
 export type Purchase = {
   id: string;
   productName: string;
@@ -10,6 +12,11 @@ export type Purchase = {
   /** Full ISO 8601 timestamp of the purchase, including time of day. */
   purchaseDate: string;
   createdAt: string;
+  /**
+   * Saved product photo (see utils/purchase-image). Absent on purchases
+   * created before photos were supported.
+   */
+  imageRef?: string | null;
 };
 
 type AddPurchaseInput = {
@@ -18,6 +25,7 @@ type AddPurchaseInput = {
   model: string;
   quantity: number;
   purchaseDate: Date;
+  imageRef: string | null;
 };
 
 const STORAGE_KEY = 'tracked-purchases';
@@ -70,30 +78,46 @@ export function usePurchases() {
       quantity: input.quantity,
       purchaseDate: input.purchaseDate.toISOString(),
       createdAt: new Date().toISOString(),
+      imageRef: input.imageRef,
     };
     setPurchases((prev) => [...prev, purchase]);
   }, []);
 
-  const updatePurchase = useCallback((id: string, input: AddPurchaseInput) => {
-    setPurchases((prev) =>
-      prev.map((purchase) =>
-        purchase.id === id
-          ? {
-              ...purchase,
-              productName: input.productName,
-              brand: input.brand,
-              model: input.model,
-              quantity: input.quantity,
-              purchaseDate: input.purchaseDate.toISOString(),
-            }
-          : purchase
-      )
-    );
-  }, []);
+  const updatePurchase = useCallback(
+    (id: string, input: AddPurchaseInput) => {
+      const previousImageRef = purchases.find((purchase) => purchase.id === id)?.imageRef;
+      if (previousImageRef && previousImageRef !== input.imageRef) {
+        deleteSavedImage(previousImageRef);
+      }
 
-  const removePurchase = useCallback((id: string) => {
-    setPurchases((prev) => prev.filter((purchase) => purchase.id !== id));
-  }, []);
+      setPurchases((prev) =>
+        prev.map((purchase) =>
+          purchase.id === id
+            ? {
+                ...purchase,
+                productName: input.productName,
+                brand: input.brand,
+                model: input.model,
+                quantity: input.quantity,
+                purchaseDate: input.purchaseDate.toISOString(),
+                imageRef: input.imageRef,
+              }
+            : purchase
+        )
+      );
+    },
+    [purchases]
+  );
+
+  const removePurchase = useCallback(
+    (id: string) => {
+      const imageRef = purchases.find((purchase) => purchase.id === id)?.imageRef;
+      if (imageRef) deleteSavedImage(imageRef);
+
+      setPurchases((prev) => prev.filter((purchase) => purchase.id !== id));
+    },
+    [purchases]
+  );
 
   return { purchases, isLoading, addPurchase, updatePurchase, removePurchase };
 }

@@ -10,6 +10,8 @@ type FormInputProps = {
   keyboardType?: TextInputProps['keyboardType'];
   /** Outlines the field in the danger color, e.g. when a required value is missing. */
   invalid?: boolean;
+  /** When false the value is shown read-only, without the input's filled background. */
+  editable?: boolean;
   accessibilityLabel?: string;
 };
 
@@ -19,6 +21,7 @@ export function FormInput({
   placeholder,
   keyboardType,
   invalid,
+  editable = true,
   accessibilityLabel,
 }: FormInputProps) {
   const theme = useTheme();
@@ -30,12 +33,13 @@ export function FormInput({
       placeholder={placeholder}
       placeholderTextColor={theme.textSecondary}
       keyboardType={keyboardType}
+      editable={editable}
       accessibilityLabel={accessibilityLabel ?? placeholder}
       style={[
         styles.input,
         {
           color: theme.text,
-          backgroundColor: theme.backgroundSelected,
+          backgroundColor: editable ? theme.backgroundSelected : 'transparent',
           borderColor: invalid ? theme.danger : 'transparent',
         },
       ]}

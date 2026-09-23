@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet } from 'react-native';
 
 import { RowActionButton } from './row-action-button';
 import { ThemedText } from './themed-text';
@@ -6,51 +6,36 @@ import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
 import type { Purchase } from '@/hooks/use-purchases';
-import { formatDisplayDate, formatRelativeTime } from '@/utils/date';
 
 type PurchaseRowProps = {
   purchase: Purchase;
-  onEdit: (id: string) => void;
+  onOpen: (id: string) => void;
   onRemove: (id: string) => void;
 };
 
-export function PurchaseRow({ purchase, onEdit, onRemove }: PurchaseRowProps) {
-  const date = new Date(purchase.purchaseDate);
-  const brandModel = [purchase.brand, purchase.model].filter(Boolean).join(' ');
-  const quantityLabel = purchase.quantity > 1 ? `×${purchase.quantity}` : null;
-  const detailLine = [brandModel, quantityLabel].filter(Boolean).join(' · ');
-
+/** Compact purchase row: just the name and a delete action. Tapping it opens the details dialog. */
+export function PurchaseRow({ purchase, onOpen, onRemove }: PurchaseRowProps) {
   return (
     <ThemedView type="backgroundElement" style={styles.row}>
-      <View style={styles.info}>
+      {/* Fills the row beside the delete button; kept a sibling of it because
+          nesting one pressable in another renders invalid <button>s on web. */}
+      <Pressable
+        onPress={() => onOpen(purchase.id)}
+        accessibilityRole="button"
+        accessibilityLabel={`View ${purchase.productName}`}
+        style={({ pressed }) => [styles.openArea, pressed && styles.pressed]}>
         <ThemedText numberOfLines={1} style={styles.name}>
           {purchase.productName}
         </ThemedText>
-        {detailLine ? (
-          <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-            {detailLine}
-          </ThemedText>
-        ) : null}
-        <ThemedText type="small" themeColor="textSecondary">
-          {formatDisplayDate(date)} · {formatRelativeTime(date)}
-        </ThemedText>
-      </View>
+      </Pressable>
 
-      <View style={styles.actions}>
-        <RowActionButton
-          icon="edit-2"
-          tooltip="Edit"
-          accessibilityLabel={`Edit ${purchase.productName}`}
-          onPress={() => onEdit(purchase.id)}
-        />
-        <RowActionButton
-          icon="trash-2"
-          tooltip="Remove"
-          tone="danger"
-          accessibilityLabel={`Remove ${purchase.productName}`}
-          onPress={() => onRemove(purchase.id)}
-        />
-      </View>
+      <RowActionButton
+        icon="trash-2"
+        tooltip="Remove"
+        tone="danger"
+        accessibilityLabel={`Remove ${purchase.productName}`}
+        onPress={() => onRemove(purchase.id)}
+      />
     </ThemedView>
   );
 }
@@ -58,23 +43,23 @@ export function PurchaseRow({ purchase, onEdit, onRemove }: PurchaseRowProps) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    alignItems: 'stretch',
     borderRadius: Spacing.three,
-    paddingVertical: Spacing.three,
-    paddingHorizontal: Spacing.three,
-    gap: Spacing.three,
+    paddingRight: Spacing.two,
+    paddingVertical: Spacing.two,
   },
-  info: {
+  openArea: {
     flex: 1,
-    gap: Spacing.half,
+    justifyContent: 'center',
+    paddingLeft: Spacing.three,
+    paddingRight: Spacing.two,
+    marginVertical: -Spacing.two,
+    paddingVertical: Spacing.two,
   },
   name: {
     fontWeight: '600',
   },
-  actions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.one,
+  pressed: {
+    opacity: 0.7,
   },
 });

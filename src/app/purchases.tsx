@@ -1,4 +1,5 @@
 import { Feather } from '@react-native-vector-icons/feather';
+import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -15,18 +16,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { BackButton } from '@/components/back-button';
 import { DateTimeField } from '@/components/date-time-field';
 import { FormInput } from '@/components/form-input';
+import { ImagePickerField } from '@/components/image-picker-field';
 import { PurchaseRow } from '@/components/purchase-row';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { type Purchase, usePurchases } from '@/hooks/use-purchases';
 import { useTheme } from '@/hooks/use-theme';
-import { formatDateHeading, nowInPHT, toDateOnlyString } from '@/utils/date';
+import {
+  formatDateHeading,
+  formatDisplayDate,
+  formatRelativeTime,
+  formatTimeOnly,
+  nowInPHT,
+  toDateOnlyString,
+} from '@/utils/date';
+import { resolveImageUri, savePickedImage } from '@/utils/purchase-image';
 
 type PurchaseSection = {
   title: string;
   data: Purchase[];
 };
+
+/** Which face the purchase dialog is showing; null when it's closed. */
+type DialogMode = 'add' | 'details' | 'edit' | null;
 
 /** Groups purchases into same-day sections, newest creation time first. */
 function groupByCreatedDate(purchases: Purchase[]): PurchaseSection[] {
@@ -53,19 +66,25 @@ export default function PurchasesScreen() {
   const { purchases, isLoading, addPurchase, updatePurchase, removePurchase } = usePurchases();
   const theme = useTheme();
 
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [dialogMode, setDialogMode] = useState<DialogMode>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [productName, setProductName] = useState('');
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [purchaseDate, setPurchaseDate] = useState(nowInPHT);
+  // What the photo field previews. `imageChanged` tells a kept image (already
+  // saved) apart from a freshly picked one that still needs saving.
+  const [imageUri, setImageUri] = useState<string | null>(null);
+  const [imageChanged, setImageChanged] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const today = nowInPHT();
   const sections = useMemo(() => groupByCreatedDate(purchases), [purchases]);
+  const selectedPurchase = purchases.find((item) => item.id === selectedId) ?? null;
   const pendingDeletePurchase = purchases.find((item) => item.id === pendingDeleteId) ?? null;
 
   const updateField = (setter: (value: string) => void) => (text: string) => {
@@ -78,40 +97,60 @@ export default function PurchasesScreen() {
     if (nameError && text.trim()) setNameError(null);
   };
 
+  const handleImageChange = (uri: string | null) => {
+    setImageUri(uri);
+    setImageChanged(true);
+    if (error) setError(null);
+  };
+
   const resetForm = () => {
     setProductName('');
     setBrand('');
     setModel('');
     setQuantity('1');
     setPurchaseDate(nowInPHT());
+    setImageUri(null);
+    setImageChanged(false);
     setNameError(null);
     setError(null);
   };
 
   const handleAddNew = () => {
-    setEditingId(null);
+    setSelectedId(null);
     resetForm();
-    setIsDialogOpen(true);
+    setDialogMode('add');
   };
 
-  const handleEdit = (id: string) => {
-    const purchase = purchases.find((item) => item.id === id);
-    if (!purchase) return;
+  const handleOpen = (id: string) => {
+    setSelectedId(id);
+    setDialogMode('details');
+  };
 
-    setEditingId(id);
-    setProductName(purchase.productName);
-    setBrand(purchase.brand);
-    setModel(purchase.model);
-    setQuantity(String(purchase.quantity));
-    setPurchaseDate(new Date(purchase.purchaseDate));
+  const handleStartEdit = () => {
+    if (!selectedPurchase) return;
+
+    setProductName(selectedPurchase.productName);
+    setBrand(selectedPurchase.brand);
+    setModel(selectedPurchase.model);
+    setQuantity(String(selectedPurchase.quantity));
+    setPurchaseDate(new Date(selectedPurchase.purchaseDate));
+    setImageUri(selectedPurchase.imageRef ? resolveImageUri(selectedPurchase.imageRef) : null);
+    setImageChanged(false);
     setNameError(null);
     setError(null);
-    setIsDialogOpen(true);
+    setDialogMode('edit');
+  };
+
+  // Cancelling an edit discards the draft and goes back to the saved details.
+  const handleCancelEdit = () => {
+    resetForm();
+    setDialogMode('details');
   };
 
   const handleCloseDialog = () => {
-    setIsDialogOpen(false);
-    setEditingId(null);
+    if (isSaving) return;
+    setDialogMode(null);
+    setSelectedId(null);
     resetForm();
   };
 
@@ -128,7 +167,9 @@ export default function PurchasesScreen() {
     setPendingDeleteId(null);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSaving) return;
+
     const trimmedName = productName.trim();
     if (!trimmedName) {
       setNameError('Product name is required.');
@@ -146,24 +187,52 @@ export default function PurchasesScreen() {
       return;
     }
 
+    const isEditing = dialogMode === 'edit' && selectedPurchase !== null;
+    let imageRef: string | null = isEditing ? (selectedPurchase.imageRef ?? null) : null;
+    if (imageChanged) {
+      if (imageUri) {
+        setIsSaving(true);
+        try {
+          imageRef = await savePickedImage(imageUri);
+        } catch (caught) {
+          console.warn('Failed to save purchase photo', caught);
+          setError("Couldn't save the photo. Try another one.");
+          return;
+        } finally {
+          setIsSaving(false);
+        }
+      } else {
+        imageRef = null;
+      }
+    }
+
     const input = {
       productName: trimmedName,
       brand: brand.trim(),
       model: model.trim(),
       quantity: parsedQuantity,
       purchaseDate,
+      imageRef,
     };
 
-    if (editingId) {
-      updatePurchase(editingId, input);
+    if (isEditing) {
+      updatePurchase(selectedPurchase.id, input);
+      resetForm();
+      setDialogMode('details');
     } else {
       addPurchase(input);
+      setDialogMode(null);
+      resetForm();
     }
-
-    setIsDialogOpen(false);
-    setEditingId(null);
-    resetForm();
   };
+
+  const isFormMode = dialogMode === 'add' || dialogMode === 'edit';
+  const dialogTitle =
+    dialogMode === 'add'
+      ? 'Add purchase'
+      : dialogMode === 'edit'
+        ? 'Edit purchase'
+        : (selectedPurchase?.productName ?? '');
 
   return (
     <ThemedView style={styles.container}>
@@ -172,7 +241,7 @@ export default function PurchasesScreen() {
           sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <PurchaseRow purchase={item} onEdit={handleEdit} onRemove={handleRequestRemove} />
+            <PurchaseRow purchase={item} onOpen={handleOpen} onRemove={handleRequestRemove} />
           )}
           renderSectionHeader={({ section }) => (
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
@@ -209,7 +278,7 @@ export default function PurchasesScreen() {
       </SafeAreaView>
 
       <Modal
-        visible={isDialogOpen}
+        visible={dialogMode !== null}
         transparent
         animationType="fade"
         onRequestClose={handleCloseDialog}>
@@ -226,7 +295,7 @@ export default function PurchasesScreen() {
           <ThemedView type="backgroundElement" style={styles.dialog}>
             <View style={styles.dialogHeader}>
               <ThemedText type="subtitle" style={styles.dialogTitle} numberOfLines={1}>
-                {editingId ? 'Edit purchase' : 'Add purchase'}
+                {dialogTitle}
               </ThemedText>
               <Pressable
                 onPress={handleCloseDialog}
@@ -238,48 +307,82 @@ export default function PurchasesScreen() {
               </Pressable>
             </View>
 
-            <ScrollView
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.dialogForm}>
-              <View style={styles.fieldGroup}>
+            {dialogMode === 'details' && selectedPurchase && (
+              <PurchaseDetails purchase={selectedPurchase} onEdit={handleStartEdit} />
+            )}
+
+            {isFormMode && (
+              <ScrollView
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={styles.dialogForm}>
+                <ImagePickerField value={imageUri} onChange={handleImageChange} />
+
+                <View style={styles.fieldGroup}>
+                  <FormInput
+                    value={productName}
+                    onChangeText={handleProductNameChange}
+                    placeholder="Product name *"
+                    accessibilityLabel="Product name, required"
+                    invalid={nameError !== null}
+                  />
+                  {nameError && (
+                    <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
+                      {nameError}
+                    </ThemedText>
+                  )}
+                </View>
+                <FormInput value={brand} onChangeText={updateField(setBrand)} placeholder="Brand" />
+                <FormInput value={model} onChangeText={updateField(setModel)} placeholder="Model" />
                 <FormInput
-                  value={productName}
-                  onChangeText={handleProductNameChange}
-                  placeholder="Product name *"
-                  accessibilityLabel="Product name, required"
-                  invalid={nameError !== null}
+                  value={quantity}
+                  onChangeText={updateField(setQuantity)}
+                  placeholder="Quantity"
+                  keyboardType="numeric"
                 />
-                {nameError && (
-                  <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
-                    {nameError}
+
+                <DateTimeField
+                  value={purchaseDate}
+                  onChange={setPurchaseDate}
+                  maximumDate={today}
+                />
+
+                {error && (
+                  <ThemedText type="small" themeColor="danger">
+                    {error}
                   </ThemedText>
                 )}
-              </View>
-              <FormInput value={brand} onChangeText={updateField(setBrand)} placeholder="Brand" />
-              <FormInput value={model} onChangeText={updateField(setModel)} placeholder="Model" />
-              <FormInput
-                value={quantity}
-                onChangeText={updateField(setQuantity)}
-                placeholder="Quantity"
-                keyboardType="numeric"
-              />
 
-              <DateTimeField value={purchaseDate} onChange={setPurchaseDate} maximumDate={today} />
-
-              {error && (
-                <ThemedText type="small" themeColor="danger">
-                  {error}
-                </ThemedText>
-              )}
-
-              <Pressable
-                onPress={handleSubmit}
-                style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}>
-                <ThemedText type="smallBold" style={styles.addButtonText}>
-                  {editingId ? 'Save changes' : 'Add purchase'}
-                </ThemedText>
-              </Pressable>
-            </ScrollView>
+                <View style={styles.formActions}>
+                  {dialogMode === 'edit' && (
+                    <Pressable
+                      onPress={handleCancelEdit}
+                      disabled={isSaving}
+                      style={({ pressed }) => [
+                        styles.secondaryButton,
+                        { backgroundColor: theme.backgroundSelected },
+                        pressed && styles.pressed,
+                      ]}>
+                      <ThemedText type="smallBold">Cancel</ThemedText>
+                    </Pressable>
+                  )}
+                  <Pressable
+                    onPress={handleSubmit}
+                    disabled={isSaving}
+                    style={({ pressed }) => [
+                      styles.addButton,
+                      (pressed || isSaving) && styles.pressed,
+                    ]}>
+                    <ThemedText type="smallBold" style={styles.addButtonText}>
+                      {isSaving
+                        ? 'Saving…'
+                        : dialogMode === 'edit'
+                          ? 'Save changes'
+                          : 'Add purchase'}
+                    </ThemedText>
+                  </Pressable>
+                </View>
+              </ScrollView>
+            )}
           </ThemedView>
         </KeyboardAvoidingView>
       </Modal>
@@ -332,6 +435,62 @@ export default function PurchasesScreen() {
   );
 }
 
+type PurchaseDetailsProps = {
+  purchase: Purchase;
+  onEdit: () => void;
+};
+
+/** Read-only view of every saved field of a purchase, with a way into edit mode. */
+function PurchaseDetails({ purchase, onEdit }: PurchaseDetailsProps) {
+  const purchaseDate = new Date(purchase.purchaseDate);
+  const details: { label: string; value: string }[] = [
+    { label: 'Brand', value: purchase.brand || '—' },
+    { label: 'Model', value: purchase.model || '—' },
+    { label: 'Quantity', value: String(purchase.quantity) },
+    {
+      label: 'Purchased',
+      value: `${formatDisplayDate(purchaseDate)}, ${formatTimeOnly(purchaseDate)}`,
+    },
+    { label: 'Bought', value: formatRelativeTime(purchaseDate) },
+    { label: 'Added', value: formatDisplayDate(new Date(purchase.createdAt)) },
+  ];
+
+  return (
+    <ScrollView contentContainerStyle={styles.dialogForm}>
+      {purchase.imageRef ? (
+        <Image
+          source={{ uri: resolveImageUri(purchase.imageRef) }}
+          style={styles.detailImage}
+          contentFit="cover"
+          accessibilityLabel={`Photo of ${purchase.productName}`}
+        />
+      ) : null}
+
+      <View style={styles.detailList}>
+        {details.map((detail) => (
+          <View key={detail.label} style={styles.detailRow}>
+            <ThemedText type="small" themeColor="textSecondary">
+              {detail.label}
+            </ThemedText>
+            <ThemedText type="small" style={styles.detailValue}>
+              {detail.value}
+            </ThemedText>
+          </View>
+        ))}
+      </View>
+
+      <Pressable
+        onPress={onEdit}
+        style={({ pressed }) => [styles.addButton, styles.editButton, pressed && styles.pressed]}>
+        <Feather name="edit-2" size={16} color="#ffffff" />
+        <ThemedText type="smallBold" style={styles.addButtonText}>
+          Edit
+        </ThemedText>
+      </Pressable>
+    </ScrollView>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -356,10 +515,44 @@ const styles = StyleSheet.create({
     marginTop: Spacing.three,
   },
   addButton: {
+    flex: 1,
     backgroundColor: '#3c87f7',
     borderRadius: Spacing.two,
     paddingVertical: Spacing.two,
     alignItems: 'center',
+  },
+  secondaryButton: {
+    flex: 1,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    alignItems: 'center',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: Spacing.two,
+  },
+  editButton: {
+    flex: 0,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.one,
+  },
+  detailImage: {
+    width: '100%',
+    aspectRatio: 4 / 3,
+    borderRadius: Spacing.two,
+  },
+  detailList: {
+    gap: Spacing.two,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: Spacing.three,
+  },
+  detailValue: {
+    flexShrink: 1,
+    textAlign: 'right',
   },
   addButtonText: {
     color: '#ffffff',
