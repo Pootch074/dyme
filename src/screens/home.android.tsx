@@ -14,6 +14,7 @@ import { type Href, router } from 'expo-router';
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader } from '@/components/compose/screen';
 import { useAppMaterialColors } from '@/components/compose/theme';
+import { sortByLabel } from '@/utils/sort';
 
 type NavItem = {
   href: Href;
@@ -22,7 +23,8 @@ type NavItem = {
   icon: number;
 };
 
-const NAV_ITEMS: NavItem[] = [
+// Shown A–Z by label (see sortByLabel), so new sections slot in automatically.
+const NAV_ITEMS: NavItem[] = sortByLabel([
   {
     // Typed routes lists this index route as "/records/index", which 404s at
     // runtime; "/records" is correct. Same upstream issue as "/" in app-tabs.web.
@@ -44,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
     description: 'Daily time record',
     icon: Icons.schedule,
   },
-];
+]);
 
 export default function HomeScreen() {
   const colors = useAppMaterialColors();

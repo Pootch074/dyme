@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader, SectionLabel } from '@/components/compose/screen';
 import { useAppMaterialColors } from '@/components/compose/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { type ThemePreference, useThemePreference } from '@/hooks/use-theme-preference';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -35,6 +36,7 @@ const TRANSPARENT = '#00000000';
 export default function SettingsScreen() {
   const colors = useAppMaterialColors();
   const { preference, setPreference } = useThemePreference();
+  const { username, signOut } = useAuth();
 
   return (
     <ComposeScreen>
@@ -45,27 +47,28 @@ export default function SettingsScreen() {
 
         <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
           <SectionLabel>Account</SectionLabel>
-          <Card
-            modifiers={[
-              fillMaxWidth(),
-              clip(Shapes.RoundedCorner(12)),
-              clickable(() => router.push('/profile')),
-            ]}>
-            <ListItem colors={{ containerColor: TRANSPARENT }}>
-              <ListItem.LeadingContent>
-                <Icon source={Icons.person} tint={colors.primary} />
-              </ListItem.LeadingContent>
-              <ListItem.HeadlineContent>
-                <Text style={{ typography: 'titleMedium' }}>Profile</Text>
-              </ListItem.HeadlineContent>
-              <ListItem.SupportingContent>
-                <Text>Your personal details</Text>
-              </ListItem.SupportingContent>
-              <ListItem.TrailingContent>
-                <Icon source={Icons.chevronRight} />
-              </ListItem.TrailingContent>
-            </ListItem>
-          </Card>
+          <SettingsRow
+            icon={Icons.person}
+            label="Profile"
+            description="Your personal details"
+            onClick={() => router.push('/profile')}
+          />
+          <SettingsRow
+            icon={Icons.logout}
+            label="Sign out"
+            description={`Signed in as ${username}`}
+            onClick={signOut}
+          />
+        </Column>
+
+        <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
+          <SectionLabel>Data</SectionLabel>
+          <SettingsRow
+            icon={Icons.download}
+            label="Export data"
+            description="Save your data as an Excel or CSV file"
+            onClick={() => router.push('/export')}
+          />
         </Column>
 
         <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
@@ -98,5 +101,35 @@ export default function SettingsScreen() {
         </Column>
       </Column>
     </ComposeScreen>
+  );
+}
+
+type SettingsRowProps = {
+  icon: number;
+  label: string;
+  description: string;
+  onClick: () => void;
+};
+
+/** One tappable settings row: icon, label and description, with a chevron. */
+function SettingsRow({ icon, label, description, onClick }: SettingsRowProps) {
+  const colors = useAppMaterialColors();
+  return (
+    <Card modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(12)), clickable(onClick)]}>
+      <ListItem colors={{ containerColor: TRANSPARENT }}>
+        <ListItem.LeadingContent>
+          <Icon source={icon} tint={colors.primary} />
+        </ListItem.LeadingContent>
+        <ListItem.HeadlineContent>
+          <Text style={{ typography: 'titleMedium' }}>{label}</Text>
+        </ListItem.HeadlineContent>
+        <ListItem.SupportingContent>
+          <Text>{description}</Text>
+        </ListItem.SupportingContent>
+        <ListItem.TrailingContent>
+          <Icon source={Icons.chevronRight} />
+        </ListItem.TrailingContent>
+      </ListItem>
+    </Card>
   );
 }

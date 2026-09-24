@@ -63,7 +63,8 @@ function migrateEntry(entry: RecordEntry): RecordEntry {
   return { ...entry, values: { ...values, documentType: values.documentType || issuingAuthority } };
 }
 
-async function loadEntries(): Promise<RecordEntry[]> {
+/** Every saved record entry, brought up to date (also used by Data Export). */
+export async function loadEntries(): Promise<RecordEntry[]> {
   const stored = await readStoredArray<RecordEntry>(STORAGE_KEY);
   if (stored) return stored.map(migrateEntry);
 

@@ -1,11 +1,12 @@
 import { Feather, type FeatherIconName } from '@react-native-vector-icons/feather';
 import { Link } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, type PressableProps, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useAuth } from '@/hooks/use-auth';
 import { useTheme } from '@/hooks/use-theme';
 import { type ThemePreference, useThemePreference } from '@/hooks/use-theme-preference';
 
@@ -24,6 +25,7 @@ const THEME_OPTIONS: ThemeOption[] = [
 export default function SettingsScreen() {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
+  const { username, signOut } = useAuth();
 
   return (
     <ThemedView style={styles.container}>
@@ -37,21 +39,27 @@ export default function SettingsScreen() {
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
             Account
           </ThemedText>
-          <Link href="/profile" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.row}>
-                <View style={styles.rowIcon}>
-                  <Feather name="user" size={20} color={theme.text} />
-                </View>
-                <View style={styles.rowText}>
-                  <ThemedText style={styles.rowLabel}>Profile</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    Your personal details
-                  </ThemedText>
-                </View>
-                <Feather name="chevron-right" size={18} color={theme.textSecondary} />
-              </ThemedView>
-            </Pressable>
+          <View style={styles.rows}>
+            <Link href="/profile" asChild>
+              <SettingsRow icon="user" label="Profile" description="Your personal details" />
+            </Link>
+            <SettingsRow
+              icon="log-out"
+              label="Sign out"
+              description={`Signed in as ${username}`}
+              onPress={signOut}
+            />
+          </View>
+
+          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
+            Data
+          </ThemedText>
+          <Link href="/export" asChild>
+            <SettingsRow
+              icon="download"
+              label="Export data"
+              description="Save your data as an Excel or CSV file"
+            />
           </Link>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
@@ -107,6 +115,39 @@ export default function SettingsScreen() {
   );
 }
 
+type SettingsRowProps = {
+  icon: FeatherIconName;
+  label: string;
+  description: string;
+  /** Set by <Link asChild> for navigation rows, or directly for actions. */
+  onPress?: PressableProps['onPress'];
+};
+
+/** One tappable settings row: icon, label and description, with a chevron. */
+function SettingsRow({ icon, label, description, onPress, ...linkProps }: SettingsRowProps) {
+  const theme = useTheme();
+  return (
+    <Pressable
+      {...linkProps}
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => pressed && styles.pressed}>
+      <ThemedView type="backgroundElement" style={styles.row}>
+        <View style={styles.rowIcon}>
+          <Feather name={icon} size={20} color={theme.text} />
+        </View>
+        <View style={styles.rowText}>
+          <ThemedText style={styles.rowLabel}>{label}</ThemedText>
+          <ThemedText type="small" themeColor="textSecondary">
+            {description}
+          </ThemedText>
+        </View>
+        <Feather name="chevron-right" size={18} color={theme.textSecondary} />
+      </ThemedView>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -127,6 +168,9 @@ const styles = StyleSheet.create({
   sectionHeader: {
     marginTop: Spacing.three,
     marginBottom: Spacing.two,
+  },
+  rows: {
+    gap: Spacing.two,
   },
   row: {
     flexDirection: 'row',

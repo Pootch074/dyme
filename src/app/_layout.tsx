@@ -7,6 +7,7 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
+import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useChromeColors } from '@/hooks/use-chrome-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { ThemePreferenceProvider } from '@/hooks/use-theme-preference';
@@ -18,7 +19,9 @@ export default function RootLayout() {
     // Root for press-and-hold drag gestures (e.g. reordering shopping items).
     <GestureHandlerRootView style={styles.root}>
       <ThemePreferenceProvider>
-        <ThemedStack />
+        <AuthProvider>
+          <ThemedStack />
+        </AuthProvider>
       </ThemePreferenceProvider>
     </GestureHandlerRootView>
   );
@@ -27,6 +30,7 @@ export default function RootLayout() {
 function ThemedStack() {
   const colorScheme = useColorScheme();
   const colors = useChromeColors();
+  const { isSignedIn } = useAuth();
 
   // Everything a screen transition can briefly reveal — the native root view
   // (document body on web), the navigation container and each screen's
@@ -52,13 +56,21 @@ function ThemedStack() {
       <AnimatedSplashOverlay />
       <Stack
         screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="records/index" />
-        <Stack.Screen name="records/[category]" />
-        <Stack.Screen name="shopping/index" />
-        <Stack.Screen name="shopping/[id]" />
-        <Stack.Screen name="dtr" />
-        <Stack.Screen name="profile" />
+        {/* Everything but Sign in needs a signed-in user. Signing out drops
+            these from history and lands on Sign in; signing in does the reverse. */}
+        <Stack.Protected guard={isSignedIn}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="records/index" />
+          <Stack.Screen name="records/[category]" />
+          <Stack.Screen name="shopping/index" />
+          <Stack.Screen name="shopping/[id]" />
+          <Stack.Screen name="dtr" />
+          <Stack.Screen name="profile" />
+          <Stack.Screen name="export" />
+        </Stack.Protected>
+        <Stack.Protected guard={!isSignedIn}>
+          <Stack.Screen name="sign-in" />
+        </Stack.Protected>
       </Stack>
     </ThemeProvider>
   );

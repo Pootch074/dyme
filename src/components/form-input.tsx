@@ -21,6 +21,9 @@ type FormInputProps = {
   autoComplete?: TextInputProps['autoComplete'];
   accessibilityLabel?: string;
   onFocus?: () => void;
+  /** Return / Enter key, e.g. to move to the next field or submit. */
+  onSubmitEditing?: () => void;
+  returnKeyType?: TextInputProps['returnKeyType'];
   /** Room at the end for a button drawn over the field (e.g. show/hide). */
   trailingInset?: number;
   ref?: Ref<TextInput>;
@@ -40,6 +43,8 @@ export function FormInput({
   autoComplete,
   accessibilityLabel,
   onFocus,
+  onSubmitEditing,
+  returnKeyType,
   trailingInset,
   ref,
 }: FormInputProps) {
@@ -50,6 +55,10 @@ export function FormInput({
       ref={ref}
       value={value}
       onFocus={onFocus}
+      onSubmitEditing={onSubmitEditing}
+      returnKeyType={returnKeyType}
+      // Keeps the keyboard up when Return moves focus to the next field.
+      submitBehavior={returnKeyType === 'next' ? 'submit' : undefined}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={theme.textSecondary}

@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
+import { readStoredArray } from '@/utils/persistent-store';
+
 export type DtrEntry = {
   /** YYYY-MM-DD; at most one entry per date. */
   date: string;
@@ -16,6 +18,11 @@ export type DtrEntry = {
 
 const STORAGE_KEY = 'dtr-entries';
 
+/** Every saved time log (also used by Data Export). */
+export async function loadDtrEntries(): Promise<DtrEntry[]> {
+  return (await readStoredArray<DtrEntry>(STORAGE_KEY)) ?? [];
+}
+
 /** Loads, persists, and mutates the user's daily time log in AsyncStorage. */
 export function useDtr() {
   const [entries, setEntries] = useState<DtrEntry[]>([]);
@@ -24,11 +31,9 @@ export function useDtr() {
   useEffect(() => {
     let cancelled = false;
 
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (cancelled || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) setEntries(parsed);
+    loadDtrEntries()
+      .then((loaded) => {
+        if (!cancelled) setEntries(loaded);
       })
       .catch((error) => {
         console.warn('Failed to load DTR entries from storage', error);

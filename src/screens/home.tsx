@@ -9,6 +9,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { ThemedText } from "@/components/themed-text";
 import { ThemedView } from "@/components/themed-view";
 import { MaxContentWidth, Spacing } from "@/constants/theme";
+import { sortByLabel } from "@/utils/sort";
 import { useTheme } from "@/hooks/use-theme";
 
 type NavItem = {
@@ -18,7 +19,8 @@ type NavItem = {
   icon: FeatherIconName;
 };
 
-const NAV_ITEMS: NavItem[] = [
+// Shown A–Z by label (see sortByLabel), so new sections slot in automatically.
+const NAV_ITEMS: NavItem[] = sortByLabel([
   {
     // Typed routes lists this index route as "/records/index", which 404s at
     // runtime; "/records" is correct. Same upstream issue as "/" in app-tabs.web.
@@ -40,7 +42,7 @@ const NAV_ITEMS: NavItem[] = [
     description: "Daily time record",
     icon: "clock",
   },
-];
+]);
 
 export default function HomeScreen() {
   const theme = useTheme();

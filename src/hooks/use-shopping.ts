@@ -1,14 +1,18 @@
 import { createPersistentStore, generateId, readStoredArray } from '@/utils/persistent-store';
 import type { ShoppingItem, ShoppingRecord } from '@/utils/shopping';
 
+/** Every saved shopping record, brought up to date (also used by Data Export). */
+export async function loadShoppingRecords(): Promise<ShoppingRecord[]> {
+  return ((await readStoredArray<ShoppingRecord>('shopping-records')) ?? []).map((record) => ({
+    ...record,
+    // Items saved before cart tracking existed start out of the cart.
+    items: record.items.map((item) => ({ ...item, inCart: item.inCart ?? false })),
+  }));
+}
+
 const store = createPersistentStore<ShoppingRecord>({
   storageKey: 'shopping-records',
-  load: async () =>
-    ((await readStoredArray<ShoppingRecord>('shopping-records')) ?? []).map((record) => ({
-      ...record,
-      // Items saved before cart tracking existed start out of the cart.
-      items: record.items.map((item) => ({ ...item, inCart: item.inCart ?? false })),
-    })),
+  load: loadShoppingRecords,
   label: 'shopping records',
 });
 

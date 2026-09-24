@@ -40,6 +40,15 @@ function parseStoredProfile(parsed: Record<string, unknown>): Profile {
   return profile;
 }
 
+/** The saved profile, or an empty one (also used by Data Export). */
+export async function loadProfile(): Promise<Profile> {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const parsed: unknown = raw ? JSON.parse(raw) : null;
+  return parsed && typeof parsed === 'object'
+    ? parseStoredProfile(parsed as Record<string, unknown>)
+    : EMPTY_PROFILE;
+}
+
 /** Loads, persists, and updates the user's personal details in AsyncStorage. */
 export function useProfile() {
   const [profile, setProfile] = useState<Profile>(EMPTY_PROFILE);
@@ -48,11 +57,9 @@ export function useProfile() {
   useEffect(() => {
     let cancelled = false;
 
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((raw) => {
-        if (cancelled || !raw) return;
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') setProfile(parseStoredProfile(parsed));
+    loadProfile()
+      .then((loaded) => {
+        if (!cancelled) setProfile(loaded);
       })
       .catch((error) => {
         console.warn('Failed to load profile from storage', error);
