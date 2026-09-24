@@ -14,8 +14,15 @@ type FormInputProps = {
   /** When false the value is shown read-only, without the input's filled background. */
   editable?: boolean;
   multiline?: boolean;
+  /** Hides the typed characters, e.g. for a password. */
+  secureTextEntry?: boolean;
+  autoCapitalize?: TextInputProps['autoCapitalize'];
+  autoCorrect?: boolean;
+  autoComplete?: TextInputProps['autoComplete'];
   accessibilityLabel?: string;
   onFocus?: () => void;
+  /** Room at the end for a button drawn over the field (e.g. show/hide). */
+  trailingInset?: number;
   ref?: Ref<TextInput>;
 };
 
@@ -27,8 +34,13 @@ export function FormInput({
   invalid,
   editable = true,
   multiline = false,
+  secureTextEntry,
+  autoCapitalize,
+  autoCorrect,
+  autoComplete,
   accessibilityLabel,
   onFocus,
+  trailingInset,
   ref,
 }: FormInputProps) {
   const theme = useTheme();
@@ -44,10 +56,15 @@ export function FormInput({
       keyboardType={keyboardType}
       editable={editable}
       multiline={multiline}
+      secureTextEntry={secureTextEntry}
+      autoCapitalize={autoCapitalize}
+      autoCorrect={autoCorrect}
+      autoComplete={autoComplete}
       accessibilityLabel={accessibilityLabel ?? placeholder}
       style={[
         styles.input,
         multiline && styles.multiline,
+        trailingInset !== undefined && { paddingRight: trailingInset },
         {
           color: theme.text,
           backgroundColor: editable ? theme.backgroundSelected : 'transparent',

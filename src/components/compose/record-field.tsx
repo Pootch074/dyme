@@ -1,6 +1,9 @@
 import {
   Column,
   DatePickerDialog,
+  DropdownMenuItem,
+  ExposedDropdownMenu,
+  ExposedDropdownMenuBox,
   FilterChip,
   FlowRow,
   Icon,
@@ -9,9 +12,10 @@ import {
   Row,
   Spacer,
   Text,
+  type TextFieldKeyboardType,
   TimePickerDialog,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth, weight, width } from '@expo/ui/jetpack-compose/modifiers';
+import { fillMaxWidth, menuAnchor, weight, width } from '@expo/ui/jetpack-compose/modifiers';
 import { useState } from 'react';
 
 import { Icons } from './icons';
@@ -85,22 +89,154 @@ export function RecordFieldControl({ field, value, onChange, error }: RecordFiel
         </FieldGroup>
       );
 
-    default:
+    case 'select':
       return (
+        <SelectControl
+          value={value}
+          onChange={onChange}
+          options={field.options ?? []}
+          label={label}
+          fieldLabel={field.label}
+          error={error}
+        />
+      );
+
+    default:
+      return field.sensitive ? (
+        <SecretControl field={field} value={value} onChange={onChange} label={label} error={error} />
+      ) : (
         <ControlledTextField
           value={value}
           onChangeText={onChange}
           label={label}
           isError={Boolean(error)}
           supportingText={error}
-          keyboardType={
-            field.type === 'amount' ? 'decimal' : field.type === 'number' ? 'number' : 'text'
-          }
+          keyboardType={keyboardTypeFor(field)}
+          exact={Boolean(field.format)}
           prefix={field.type === 'amount' ? '₱' : undefined}
           multiline={field.type === 'multiline'}
         />
       );
   }
+}
+
+function keyboardTypeFor(field: RecordField): TextFieldKeyboardType {
+  if (field.type === 'amount') return 'decimal';
+  if (field.type === 'number' || field.format === 'digits') return 'number';
+  if (field.format === 'email') return 'email';
+  if (field.format === 'phone') return 'phone';
+  // Keeps the keyboard from learning or suggesting what's typed.
+  if (field.sensitive) return 'password';
+  return 'text';
+}
+
+type SecretControlProps = {
+  field: RecordField;
+  value: string;
+  onChange: (value: string) => void;
+  label: string;
+  error?: string | null;
+};
+
+/** Text field that's masked by default, with an eye button to show what's typed. */
+function SecretControl({ field, value, onChange, label, error }: SecretControlProps) {
+  const [revealed, setRevealed] = useState(false);
+
+  return (
+    <ControlledTextField
+      value={value}
+      onChangeText={onChange}
+      label={label}
+      isError={Boolean(error)}
+      supportingText={error}
+      keyboardType={keyboardTypeFor(field)}
+      exact
+      masked={!revealed}
+      trailing={
+        <IconButton onClick={() => setRevealed((shown) => !shown)}>
+          <Icon
+            source={revealed ? Icons.visibilityOff : Icons.visibility}
+            contentDescription={`${revealed ? 'Hide' : 'Show'} ${field.label.toLowerCase()}`}
+          />
+        </IconButton>
+      }
+    />
+  );
+}
+
+type SelectControlProps = {
+  value: string;
+  onChange: (value: string) => void;
+  options: readonly string[];
+  label: string;
+  /** The field's name without the required marker, e.g. "ID/Document type". */
+  fieldLabel: string;
+  error?: string | null;
+};
+
+/**
+ * Material exposed dropdown of `options`, plus "Other" for any value: it
+ * reveals a text field below. Picking the selected option again clears it.
+ */
+function SelectControl({ value, onChange, options, label, fieldLabel, error }: SelectControlProps) {
+  const [expanded, setExpanded] = useState(false);
+  // A saved value that isn't one of the options is a custom one.
+  const [isCustom, setIsCustom] = useState(() => value !== '' && !options.includes(value));
+
+  const choose = (option: string) => {
+    setExpanded(false);
+    setIsCustom(false);
+    onChange(option === value ? '' : option);
+  };
+
+  const chooseOther = () => {
+    setExpanded(false);
+    if (!isCustom) {
+      setIsCustom(true);
+      onChange('');
+    }
+  };
+
+  return (
+    <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
+      <ExposedDropdownMenuBox expanded={expanded} onExpandedChange={setExpanded}>
+        <ControlledTextField
+          value={isCustom ? 'Other' : value}
+          onChangeText={() => {}}
+          label={label}
+          readOnly
+          isError={Boolean(error) && !isCustom}
+          supportingText={isCustom ? undefined : error}
+          trailing={<Icon source={Icons.arrowDropDown} />}
+          modifiers={[menuAnchor(), fillMaxWidth()]}
+        />
+        <ExposedDropdownMenu expanded={expanded} onDismissRequest={() => setExpanded(false)}>
+          {options.map((option) => (
+            <DropdownMenuItem key={option} onClick={() => choose(option)}>
+              <DropdownMenuItem.Text>
+                <Text>{option}</Text>
+              </DropdownMenuItem.Text>
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuItem onClick={chooseOther}>
+            <DropdownMenuItem.Text>
+              <Text>Other (type it in)</Text>
+            </DropdownMenuItem.Text>
+          </DropdownMenuItem>
+        </ExposedDropdownMenu>
+      </ExposedDropdownMenuBox>
+
+      {isCustom ? (
+        <ControlledTextField
+          value={value}
+          onChangeText={onChange}
+          label={`Type the ${fieldLabel.toLowerCase()}`}
+          isError={Boolean(error)}
+          supportingText={error}
+        />
+      ) : null}
+    </Column>
+  );
 }
 
 type FieldGroupProps = {

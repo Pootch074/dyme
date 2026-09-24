@@ -6,7 +6,7 @@ import {
   useNativeState,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, type ModifierConfig } from '@expo/ui/jetpack-compose/modifiers';
-import { type Ref, useEffect, useRef } from 'react';
+import { type ReactNode, type Ref, useEffect, useRef } from 'react';
 
 type ControlledTextFieldProps = {
   value: string;
@@ -18,6 +18,14 @@ type ControlledTextFieldProps = {
   keyboardType?: TextFieldKeyboardType;
   multiline?: boolean;
   prefix?: string;
+  /** Hides the characters (e.g. a password); pair with a trailing show/hide button. */
+  masked?: boolean;
+  /** Typed exactly as entered: no auto-capitals or corrections (numbers, emails, usernames). */
+  exact?: boolean;
+  /** Icon button at the end of the field, e.g. show/hide. */
+  trailing?: ReactNode;
+  /** Shown but not typed into, e.g. as a dropdown's anchor. */
+  readOnly?: boolean;
   onFocusChange?: (focused: boolean) => void;
   /** Imperative handle, e.g. to blur the field when another control takes over. */
   fieldRef?: Ref<TextFieldRef>;
@@ -39,6 +47,10 @@ export function ControlledTextField({
   keyboardType = 'text',
   multiline = false,
   prefix,
+  masked = false,
+  exact = false,
+  trailing,
+  readOnly = false,
   onFocusChange,
   fieldRef,
   modifiers,
@@ -66,10 +78,13 @@ export function ControlledTextField({
       }}
       isError={isError}
       singleLine={!multiline}
+      readOnly={readOnly}
+      visualTransformation={masked ? 'password' : 'none'}
       minLines={multiline ? 3 : undefined}
       keyboardOptions={{
         keyboardType,
-        capitalization: keyboardType === 'text' ? 'sentences' : 'none',
+        capitalization: keyboardType === 'text' && !exact ? 'sentences' : 'none',
+        autoCorrectEnabled: !exact,
         imeAction: multiline ? 'default' : 'next',
       }}
       modifiers={modifiers ?? [fillMaxWidth()]}>
@@ -81,6 +96,7 @@ export function ControlledTextField({
           <Text>{prefix}</Text>
         </OutlinedTextField.Prefix>
       ) : null}
+      {trailing ? <OutlinedTextField.TrailingIcon>{trailing}</OutlinedTextField.TrailingIcon> : null}
       {supportingText ? (
         <OutlinedTextField.SupportingText>
           <Text>{supportingText}</Text>

@@ -1,5 +1,6 @@
 import { Feather } from '@react-native-vector-icons/feather';
 import { Image } from 'expo-image';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -16,6 +17,7 @@ import { BackButton } from '@/components/back-button';
 import { ImagePickerField } from '@/components/image-picker-field';
 import { RecordFieldInput } from '@/components/record-field-input';
 import { RecordRow } from '@/components/record-row';
+import { RevealToggle } from '@/components/reveal-toggle';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import type { RecordCategory } from '@/constants/record-categories';
@@ -23,7 +25,13 @@ import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
 import { entryTitle, useEntryEditor } from '@/hooks/use-entry-editor';
 import type { RecordEntry } from '@/hooks/use-records';
 import { useTheme } from '@/hooks/use-theme';
-import { buildEntryDetails } from '@/utils/record-format';
+import { formatDisplayDate } from '@/utils/date';
+import {
+  buildEntryDetails,
+  type EntryDetail,
+  entryTimelineDate,
+  formatTimelineDate,
+} from '@/utils/record-format';
 import { resolveImageUri } from '@/utils/record-image';
 
 export type RecordCategoryScreenProps = {
@@ -67,14 +75,19 @@ export function RecordCategoryScreen({ category }: RecordCategoryScreenProps) {
         <SectionList
           sections={sections}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <RecordRow
-              id={item.id}
-              title={entryTitle(category, item)}
-              onOpen={handleOpen}
-              onRemove={handleRequestRemove}
-            />
-          )}
+          renderItem={({ item }) => {
+            const timeline = entryTimelineDate(category, item);
+            return (
+              <RecordRow
+                id={item.id}
+                title={entryTitle(category, item)}
+                timeline={formatTimelineDate(timeline)}
+                timelineLabel={formatDisplayDate(timeline)}
+                onOpen={handleOpen}
+                onRemove={handleRequestRemove}
+              />
+            );
+          }}
           renderSectionHeader={({ section }) => (
             <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
               {section.title}
@@ -280,14 +293,7 @@ function EntryDetails({ category, entry, onEdit }: EntryDetailsProps) {
 
       <View style={styles.detailList}>
         {details.map((detail) => (
-          <View key={detail.label} style={styles.detailRow}>
-            <ThemedText type="small" themeColor="textSecondary">
-              {detail.label}
-            </ThemedText>
-            <ThemedText type="small" style={styles.detailValue}>
-              {detail.value}
-            </ThemedText>
-          </View>
+          <DetailRow key={detail.label} detail={detail} />
         ))}
       </View>
 
@@ -304,6 +310,37 @@ function EntryDetails({ category, entry, onEdit }: EntryDetailsProps) {
         </ThemedText>
       </Pressable>
     </ScrollView>
+  );
+}
+
+/** One label / value line; a sensitive value stays masked until its eye button is tapped. */
+function DetailRow({ detail }: { detail: EntryDetail }) {
+  const [revealed, setRevealed] = useState(false);
+  const isMasked = detail.masked !== undefined && !revealed;
+
+  return (
+    <View style={[styles.detailRow, detail.masked !== undefined && styles.detailRowSensitive]}>
+      <ThemedText type="small" themeColor="textSecondary">
+        {detail.label}
+      </ThemedText>
+      <View style={styles.detailValueWrap}>
+        <ThemedText
+          type="small"
+          selectable={!isMasked}
+          accessibilityLabel={isMasked ? `${detail.label} hidden` : undefined}
+          style={styles.detailValue}>
+          {isMasked ? detail.masked : detail.value}
+        </ThemedText>
+        {detail.masked !== undefined ? (
+          <RevealToggle
+            revealed={revealed}
+            onToggle={() => setRevealed((shown) => !shown)}
+            label={detail.label.toLowerCase()}
+            style={styles.detailReveal}
+          />
+        ) : null}
+      </View>
+    </View>
   );
 }
 
@@ -351,7 +388,10 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
   },
   editButton: {
+    // Undoes primaryButton's flex: 1. `flex: 0` alone becomes a 0% basis on
+    // web, which squashed the button to its padding.
     flex: 0,
+    flexBasis: 'auto',
     flexDirection: 'row',
     justifyContent: 'center',
     gap: Spacing.one,
@@ -369,9 +409,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: Spacing.three,
   },
+  detailRowSensitive: {
+    alignItems: 'center',
+  },
+  detailValueWrap: {
+    flexShrink: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   detailValue: {
     flexShrink: 1,
     textAlign: 'right',
+  },
+  // Keeps the button's larger touch area from widening the row.
+  detailReveal: {
+    marginVertical: -Spacing.two,
+    marginRight: -Spacing.two,
   },
   pressed: {
     opacity: 0.7,

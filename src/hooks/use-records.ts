@@ -52,9 +52,20 @@ function fromLegacyPurchase(purchase: LegacyPurchase): RecordEntry {
   };
 }
 
+/**
+ * Brings an entry saved by an older version up to date: IDs & Documents'
+ * free-text "Issuing authority" became the "ID/Document type" field, so its
+ * value carries over there (as a custom type) instead of disappearing.
+ */
+function migrateEntry(entry: RecordEntry): RecordEntry {
+  if (entry.category !== 'ids' || !('issuingAuthority' in entry.values)) return entry;
+  const { issuingAuthority, ...values } = entry.values;
+  return { ...entry, values: { ...values, documentType: values.documentType || issuingAuthority } };
+}
+
 async function loadEntries(): Promise<RecordEntry[]> {
   const stored = await readStoredArray<RecordEntry>(STORAGE_KEY);
-  if (stored) return stored;
+  if (stored) return stored.map(migrateEntry);
 
   const legacy = await readStoredArray<LegacyPurchase>(LEGACY_PURCHASES_KEY);
   return legacy ? legacy.map(fromLegacyPurchase) : [];

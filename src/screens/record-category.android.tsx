@@ -34,6 +34,7 @@ import {
   width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { router } from 'expo-router';
+import { useState } from 'react';
 
 import { Icons } from '@/components/compose/icons';
 import { PhotoField } from '@/components/compose/photo-field';
@@ -43,7 +44,12 @@ import { useAppMaterialColors } from '@/components/compose/theme';
 import type { RecordCategory } from '@/constants/record-categories';
 import { entryTitle, useEntryEditor } from '@/hooks/use-entry-editor';
 import type { RecordEntry } from '@/hooks/use-records';
-import { buildEntryDetails } from '@/utils/record-format';
+import {
+  buildEntryDetails,
+  type EntryDetail,
+  entryTimelineDate,
+  formatTimelineDate,
+} from '@/utils/record-format';
 import { resolveImageUri } from '@/utils/record-image';
 
 export type RecordCategoryScreenProps = {
@@ -93,6 +99,7 @@ export function RecordCategoryScreen({ category }: RecordCategoryScreenProps) {
               <EntryRow
                 key={entry.id}
                 title={entryTitle(category, entry)}
+                timeline={formatTimelineDate(entryTimelineDate(category, entry))}
                 onOpen={() => editor.openEntry(entry.id)}
                 onRemove={() => editor.requestRemove(entry.id)}
               />
@@ -140,12 +147,15 @@ export function RecordCategoryScreen({ category }: RecordCategoryScreenProps) {
 
 type EntryRowProps = {
   title: string;
+  /** The entry's timeline date, e.g. "Aug 15 2026". */
+  timeline: string;
   onOpen: () => void;
   onRemove: () => void;
 };
 
-/** Compact entry row: the name and a delete action; tapping it opens the details. */
-function EntryRow({ title, onOpen, onRemove }: EntryRowProps) {
+/** Compact entry row: the name with its timeline date beside it, and a delete action; tapping it opens the details. */
+function EntryRow({ title, timeline, onOpen, onRemove }: EntryRowProps) {
+  const colors = useAppMaterialColors();
   return (
     <Card modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(12)), clickable(onOpen)]}>
       <ListItem colors={{ containerColor: TRANSPARENT }}>
@@ -155,9 +165,14 @@ function EntryRow({ title, onOpen, onRemove }: EntryRowProps) {
           </Text>
         </ListItem.HeadlineContent>
         <ListItem.TrailingContent>
-          <IconButton onClick={onRemove}>
-            <Icon source={Icons.delete} contentDescription={`Remove ${title}`} />
-          </IconButton>
+          <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 4 }}>
+            <Text color={colors.onSurfaceVariant} style={{ typography: 'labelLarge' }}>
+              {timeline}
+            </Text>
+            <IconButton onClick={onRemove}>
+              <Icon source={Icons.delete} contentDescription={`Remove ${title}`} />
+            </IconButton>
+          </Row>
         </ListItem.TrailingContent>
       </ListItem>
     </Card>
@@ -233,19 +248,7 @@ function EntryDetails({ category, entry, onEdit }: EntryDetailsProps) {
         {details.map((detail, index) => (
           <Column key={detail.label} verticalArrangement={{ spacedBy: 12 }}>
             {index > 0 ? <HorizontalDivider color={colors.outlineVariant} /> : null}
-            <Row
-              modifiers={[fillMaxWidth()]}
-              horizontalArrangement={{ spacedBy: 16 }}
-              verticalAlignment="center">
-              <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
-                {detail.label}
-              </Text>
-              <Text
-                style={{ typography: 'bodyLarge', textAlign: 'end' }}
-                modifiers={[weight(1)]}>
-                {detail.value}
-              </Text>
-            </Row>
+            <DetailRow detail={detail} />
           </Column>
         ))}
       </Column>
@@ -256,6 +259,35 @@ function EntryDetails({ category, entry, onEdit }: EntryDetailsProps) {
         <Text>Edit</Text>
       </Button>
     </Column>
+  );
+}
+
+/** One label / value line; a sensitive value stays masked until its eye button is tapped. */
+function DetailRow({ detail }: { detail: EntryDetail }) {
+  const colors = useAppMaterialColors();
+  const [revealed, setRevealed] = useState(false);
+  const isSensitive = detail.masked !== undefined;
+
+  return (
+    <Row
+      modifiers={[fillMaxWidth()]}
+      horizontalArrangement={{ spacedBy: 16 }}
+      verticalAlignment="center">
+      <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
+        {detail.label}
+      </Text>
+      <Text style={{ typography: 'bodyLarge', textAlign: 'end' }} modifiers={[weight(1)]}>
+        {isSensitive && !revealed ? detail.masked : detail.value}
+      </Text>
+      {isSensitive ? (
+        <IconButton onClick={() => setRevealed((shown) => !shown)}>
+          <Icon
+            source={revealed ? Icons.visibilityOff : Icons.visibility}
+            contentDescription={`${revealed ? 'Hide' : 'Show'} ${detail.label.toLowerCase()}`}
+          />
+        </IconButton>
+      ) : null}
+    </Row>
   );
 }
 

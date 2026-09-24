@@ -7,6 +7,7 @@
 export const Icons = {
   add: require('@/assets/icons/add.xml'),
   arrowBack: require('@/assets/icons/arrow_back.xml'),
+  arrowDropDown: require('@/assets/icons/arrow_drop_down.xml'),
   backspace: require('@/assets/icons/backspace.xml'),
   brightnessAuto: require('@/assets/icons/brightness_auto.xml'),
   calendar: require('@/assets/icons/calendar_today.xml'),
@@ -26,6 +27,8 @@ export const Icons = {
   schedule: require('@/assets/icons/schedule.xml'),
   shoppingCart: require('@/assets/icons/shopping_cart.xml'),
   upload: require('@/assets/icons/upload.xml'),
+  visibility: require('@/assets/icons/visibility.xml'),
+  visibilityOff: require('@/assets/icons/visibility_off.xml'),
   wallet: require('@/assets/icons/account_balance_wallet.xml'),
   warning: require('@/assets/icons/warning.xml'),
 } as const;

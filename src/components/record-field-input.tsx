@@ -1,9 +1,12 @@
 import { Feather } from '@react-native-vector-icons/feather';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet, type TextInputProps, View } from 'react-native';
 
 import { DateField } from './date-field';
 import { DateTimeField } from './date-time-field';
 import { FormInput } from './form-input';
+import { RevealToggle } from './reveal-toggle';
+import { SelectField } from './select-field';
 import { ThemedText } from './themed-text';
 
 import type { RecordField } from '@/constants/record-categories';
@@ -131,26 +134,93 @@ function FieldControl({ field, value, onChange, invalid, accessibilityLabel }: F
         </View>
       );
 
-    default:
+    case 'select':
       return (
+        <SelectField
+          value={value}
+          onChange={onChange}
+          options={field.options ?? []}
+          label={field.label}
+          invalid={invalid}
+        />
+      );
+
+    default:
+      return field.sensitive ? (
+        <SecretInput
+          field={field}
+          value={value}
+          onChange={onChange}
+          invalid={invalid}
+          accessibilityLabel={accessibilityLabel}
+        />
+      ) : (
         <FormInput
           value={value}
           onChangeText={onChange}
           placeholder={field.type === 'amount' ? '0.00' : field.label}
           accessibilityLabel={accessibilityLabel}
-          keyboardType={
-            field.keyboardType ??
-            (field.type === 'amount'
-              ? 'decimal-pad'
-              : field.type === 'number'
-                ? 'number-pad'
-                : undefined)
-          }
+          keyboardType={keyboardTypeFor(field)}
+          {...plainEntryProps(field)}
           multiline={field.type === 'multiline'}
           invalid={invalid}
         />
       );
   }
+}
+
+function keyboardTypeFor(field: RecordField): TextInputProps['keyboardType'] {
+  if (field.keyboardType) return field.keyboardType;
+  if (field.type === 'amount') return 'decimal-pad';
+  if (field.type === 'number' || field.format === 'digits') return 'number-pad';
+  if (field.format === 'email') return 'email-address';
+  if (field.format === 'phone') return 'phone-pad';
+  return undefined;
+}
+
+/** Numbers, emails, usernames and secrets are typed exactly: no auto-capitals or corrections. */
+function plainEntryProps(field: RecordField) {
+  return field.format || field.sensitive
+    ? { autoCapitalize: 'none' as const, autoCorrect: false }
+    : {};
+}
+
+type SecretInputProps = {
+  field: RecordField;
+  value: string;
+  onChange: (value: string) => void;
+  invalid: boolean;
+  accessibilityLabel: string;
+};
+
+/** Text input that's hidden by default, with an eye button to show what's typed. */
+function SecretInput({ field, value, onChange, invalid, accessibilityLabel }: SecretInputProps) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <View>
+      <FormInput
+        value={value}
+        onChangeText={onChange}
+        placeholder={field.label}
+        accessibilityLabel={accessibilityLabel}
+        keyboardType={keyboardTypeFor(field)}
+        {...plainEntryProps(field)}
+        secureTextEntry={!revealed}
+        // These are records of other accounts, not this app's sign-in, so
+        // don't offer to autofill or save them as passwords.
+        autoComplete="off"
+        trailingInset={44}
+        invalid={invalid}
+      />
+      <View style={styles.revealSlot}>
+        <RevealToggle
+          revealed={revealed}
+          onToggle={() => setRevealed((shown) => !shown)}
+          label={field.label.toLowerCase()}
+        />
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -200,6 +270,14 @@ const styles = StyleSheet.create({
   },
   choiceSelectedText: {
     color: '#ffffff',
+  },
+  revealSlot: {
+    position: 'absolute',
+    right: Spacing.one,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    pointerEvents: 'box-none',
   },
   pressed: {
     opacity: 0.7,
