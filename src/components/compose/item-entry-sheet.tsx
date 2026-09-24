@@ -98,7 +98,7 @@ export function ItemEntrySheet({ details }: ItemEntrySheetProps) {
           <Row verticalAlignment="center" horizontalArrangement={{ spacedBy: 16 }}>
             <FilledTonalIconButton
               onClick={() => details.stepQuantity(-1)}
-              enabled={quantityNumber > 1}
+              enabled={quantityNumber > details.minQuantity}
               modifiers={[size(48, 48)]}>
               <Icon source={Icons.remove} contentDescription="Decrease quantity" />
             </FilledTonalIconButton>

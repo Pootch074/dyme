@@ -5,6 +5,7 @@ import { applyKey, type KeypadKey } from '@/utils/keypad';
 import { centavosToInput, moneyErrorMessage, parseMoneyInput } from '@/utils/money';
 import {
   budgetStatus,
+  cartProgress,
   itemTotal,
   recordItemCount,
   recordTotal,
@@ -16,13 +17,16 @@ type ItemFieldErrors = Partial<Record<'name' | 'price' | 'quantity', string>>;
 /** Field the Add Item dialog is editing: price and quantity use the number pad, the name uses the keyboard. */
 export type ItemField = 'price' | 'quantity' | 'name';
 
-/** Validates a quantity: required, a whole number, at least 1. */
-function parseQuantity(input: string): { ok: true; quantity: number } | { ok: false; error: string } {
+/** Validates a quantity: required, a whole number, at least `min`. */
+function parseQuantity(
+  input: string,
+  min: number
+): { ok: true; quantity: number } | { ok: false; error: string } {
   const trimmed = input.trim();
   if (!trimmed) return { ok: false, error: 'Quantity is required.' };
   if (!/^\d+$/.test(trimmed)) return { ok: false, error: 'Quantity must be a whole number.' };
   const quantity = Number(trimmed);
-  if (quantity < 1) return { ok: false, error: 'Quantity must be at least 1.' };
+  if (quantity < min) return { ok: false, error: `Quantity must be at least ${min}.` };
   return { ok: true, quantity };
 }
 
@@ -34,11 +38,21 @@ function parseQuantity(input: string): { ok: true; quantity: number } | { ok: fa
  * edited with the rest of the record (see useShoppingRecordForm).
  */
 export function useShoppingDetails(recordId: string) {
-  const { records, isLoading, addItem, updateItem, removeItem, removeRecord } = useShopping();
+  const {
+    records,
+    isLoading,
+    addItem,
+    updateItem,
+    setItemInCart,
+    moveItem,
+    removeItem,
+    removeRecord,
+  } = useShopping();
   const record = records.find((candidate) => candidate.id === recordId) ?? null;
 
   const total = record ? recordTotal(record) : 0;
   const itemCount = record ? recordItemCount(record) : 0;
+  const cart = record ? cartProgress(record) : { inCart: 0, total: 0 };
   const status = budgetStatus(record?.budgetCentavos ?? null, total);
 
   // Item dialog
@@ -56,7 +70,12 @@ export function useShoppingDetails(recordId: string) {
   const [isDeleteRecordOpen, setIsDeleteRecordOpen] = useState(false);
 
   const parsedPrice = parseMoneyInput(price);
-  const parsedQuantity = parseQuantity(quantity);
+  /**
+   * New items need at least 1. An existing item can be brought down to 0 (as
+   * its row stepper allows), so editing one that is already at 0 still saves.
+   */
+  const minQuantity = itemDialog?.mode === 'edit' ? 0 : 1;
+  const parsedQuantity = parseQuantity(quantity, minQuantity);
   /** Item Total shown live in the dialog; null until price and quantity are valid. */
   const liveItemTotal =
     parsedPrice.ok && parsedQuantity.ok
@@ -103,11 +122,11 @@ export function useShoppingDetails(recordId: string) {
     clearItemError('price');
   };
 
-  /** The dialog's −/+ buttons; never below 1. */
+  /** The dialog's −/+ buttons; never below the minimum quantity. */
   const stepQuantity = (delta: number) => {
     setQuantity((prev) => {
       const current = /^\d+$/.test(prev) ? Number(prev) : 0;
-      return String(Math.max(1, current + delta));
+      return String(Math.max(minQuantity, current + delta));
     });
     clearItemError('quantity');
   };
@@ -135,7 +154,7 @@ export function useShoppingDetails(recordId: string) {
     setItemDialog(null);
   };
 
-  /** Adjusts just the quantity of an item, e.g. from the row's +/- stepper. */
+  /** Adjusts just the quantity of an item, e.g. from the row's +/- stepper; never below 0. */
   const setItemQuantity = (itemId: string, quantity: number) => {
     if (!record) return;
     const item = record.items.find((candidate) => candidate.id === itemId);
@@ -143,8 +162,13 @@ export function useShoppingDetails(recordId: string) {
     updateItem(record.id, itemId, {
       name: item.name,
       priceCentavos: item.priceCentavos,
-      quantity,
+      quantity: Math.max(0, quantity),
     });
+  };
+
+  /** Confirms an item is in the cart (or takes it back out); nothing else about the item changes. */
+  const setInCart = (itemId: string, inCart: boolean) => {
+    if (record) setItemInCart(record.id, itemId, inCart);
   };
 
   const pendingDeleteItem = record?.items.find((item) => item.id === pendingDeleteItemId) ?? null;
@@ -164,6 +188,7 @@ export function useShoppingDetails(recordId: string) {
     isLoading,
     total,
     itemCount,
+    cart,
     status,
 
     itemDialog,
@@ -173,6 +198,7 @@ export function useShoppingDetails(recordId: string) {
     quantity,
     itemErrors,
     liveItemTotal,
+    minQuantity,
     setName: (text: string) => {
       setName(text);
       clearItemError('name');
@@ -194,6 +220,10 @@ export function useShoppingDetails(recordId: string) {
     closeItemDialog,
     saveItem,
     setItemQuantity,
+    setInCart,
+    moveItem: (fromIndex: number, toIndex: number) => {
+      if (record) moveItem(record.id, fromIndex, toIndex);
+    },
 
     pendingDeleteItem,
     requestDeleteItem: (itemId: string) => setPendingDeleteItemId(itemId),

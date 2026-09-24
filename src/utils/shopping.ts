@@ -8,8 +8,13 @@ export type ShoppingItem = {
   name: string;
   /** Unit price in centavos. */
   priceCentavos: number;
-  /** Whole number, at least 1. */
+  /** Whole number, 0 or more (0 keeps the item on the list without counting it). */
   quantity: number;
+  /**
+   * Whether the shopper has confirmed the item is physically in the cart. New
+   * items start out of the cart; it tracks progress only and never affects totals.
+   */
+  inCart: boolean;
 };
 
 export type ShoppingRecord = {
@@ -36,6 +41,19 @@ export function recordTotal(record: Pick<ShoppingRecord, 'items'>): number {
 /** Total Items = sum of all quantities, e.g. 3 cans of tuna and 1 bag of rice is 4. */
 export function recordItemCount(record: Pick<ShoppingRecord, 'items'>): number {
   return record.items.reduce((sum, item) => sum + item.quantity, 0);
+}
+
+/** How many item rows are confirmed in the cart, out of all rows (rows, not quantities). */
+export function cartProgress(record: Pick<ShoppingRecord, 'items'>): { inCart: number; total: number } {
+  return {
+    inCart: record.items.filter((item) => item.inCart).length,
+    total: record.items.length,
+  };
+}
+
+/** e.g. "2 of 5 in cart", or "All 5 in cart" once everything is. */
+export function cartProgressLabel({ inCart, total }: { inCart: number; total: number }): string {
+  return inCart === total ? `All ${total} in cart` : `${inCart} of ${total} in cart`;
 }
 
 export type BudgetStatus =

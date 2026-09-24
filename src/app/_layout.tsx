@@ -3,6 +3,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
 import { useEffect, useMemo } from 'react';
+import { StyleSheet } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { useChromeColors } from '@/hooks/use-chrome-colors';
@@ -13,9 +15,12 @@ SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <ThemePreferenceProvider>
-      <ThemedStack />
-    </ThemePreferenceProvider>
+    // Root for press-and-hold drag gestures (e.g. reordering shopping items).
+    <GestureHandlerRootView style={styles.root}>
+      <ThemePreferenceProvider>
+        <ThemedStack />
+      </ThemePreferenceProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -58,3 +63,9 @@ function ThemedStack() {
     </ThemeProvider>
   );
 }
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+});

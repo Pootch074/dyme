@@ -3,7 +3,12 @@ import type { ShoppingItem, ShoppingRecord } from '@/utils/shopping';
 
 const store = createPersistentStore<ShoppingRecord>({
   storageKey: 'shopping-records',
-  load: async () => (await readStoredArray<ShoppingRecord>('shopping-records')) ?? [],
+  load: async () =>
+    ((await readStoredArray<ShoppingRecord>('shopping-records')) ?? []).map((record) => ({
+      ...record,
+      // Items saved before cart tracking existed start out of the cart.
+      items: record.items.map((item) => ({ ...item, inCart: item.inCart ?? false })),
+    })),
   label: 'shopping records',
 });
 
@@ -13,7 +18,8 @@ export type ShoppingRecordInput = {
   /** Budget in centavos, or null for no budget. */
   budgetCentavos: number | null;
 };
-export type ShoppingItemInput = Omit<ShoppingItem, 'id'>;
+/** An item's details. Cart status isn't one of them: only setItemInCart changes it. */
+export type ShoppingItemInput = Omit<ShoppingItem, 'id' | 'inCart'>;
 
 function updateRecordById(id: string, change: (record: ShoppingRecord) => ShoppingRecord) {
   store.update((prev) => prev.map((record) => (record.id === id ? change(record) : record)));
@@ -44,7 +50,7 @@ function removeRecord(id: string) {
 function addItem(recordId: string, input: ShoppingItemInput) {
   updateRecordById(recordId, (record) => ({
     ...record,
-    items: [...record.items, { id: generateId(), ...input }],
+    items: [...record.items, { id: generateId(), ...input, inCart: false }],
   }));
 }
 
@@ -53,6 +59,31 @@ function updateItem(recordId: string, itemId: string, input: ShoppingItemInput) 
     ...record,
     items: record.items.map((item) => (item.id === itemId ? { ...item, ...input } : item)),
   }));
+}
+
+/** Changes only the item's cart status; a no-op when it already has that status. */
+function setItemInCart(recordId: string, itemId: string, inCart: boolean) {
+  const record = store.getItems().find((candidate) => candidate.id === recordId);
+  const item = record?.items.find((candidate) => candidate.id === itemId);
+  if (!item || item.inCart === inCart) return;
+  updateRecordById(recordId, (current) => ({
+    ...current,
+    items: current.items.map((candidate) =>
+      candidate.id === itemId ? { ...candidate, inCart } : candidate
+    ),
+  }));
+}
+
+/** Moves an item to a new position in its record's list; the order is what the list shows and is saved. */
+function moveItem(recordId: string, fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex) return;
+  updateRecordById(recordId, (record) => {
+    if (fromIndex < 0 || fromIndex >= record.items.length) return record;
+    const items = [...record.items];
+    const [moved] = items.splice(fromIndex, 1);
+    items.splice(Math.min(Math.max(toIndex, 0), items.length), 0, moved);
+    return { ...record, items };
+  });
 }
 
 function removeItem(recordId: string, itemId: string) {
@@ -73,6 +104,8 @@ export function useShopping() {
     removeRecord,
     addItem,
     updateItem,
+    setItemInCart,
+    moveItem,
     removeItem,
   };
 }

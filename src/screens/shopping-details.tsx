@@ -1,16 +1,14 @@
 import { Feather } from '@react-native-vector-icons/feather';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ActionMenu } from '@/components/action-menu';
 import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { ItemEntryDialog } from '@/components/item-entry-dialog';
-import { QuantityStepper } from '@/components/quantity-stepper';
 import { RowActionButton } from '@/components/row-action-button';
+import { ShoppingItemList } from '@/components/shopping-item-list';
 import { ShoppingRecordDialog } from '@/components/shopping-record-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -21,9 +19,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { formatCentavos } from '@/utils/money';
 import {
   budgetWarning,
+  cartProgressLabel,
   formatShoppingDateTime,
-  itemTotal,
-  type ShoppingItem,
 } from '@/utils/shopping';
 
 export type ShoppingDetailsScreenProps = {
@@ -127,28 +124,32 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
             </View>
           ) : null}
 
-          <ThemedText type="smallBold" themeColor="textSecondary" style={styles.itemsHeader}>
-            Items
-          </ThemedText>
+          <View style={styles.itemsHeader}>
+            <ThemedText
+              type="smallBold"
+              themeColor="textSecondary"
+              numberOfLines={1}
+              style={styles.itemsTitle}>
+              Items
+              {record.items.length > 1 ? (
+                <ThemedText type="small" themeColor="textSecondary">
+                  {'  ·  Hold to move'}
+                </ThemedText>
+              ) : null}
+            </ThemedText>
+            {details.cart.total > 0 ? (
+              <ThemedText
+                type="smallBold"
+                numberOfLines={1}
+                themeColor={details.cart.inCart === details.cart.total ? 'success' : 'textSecondary'}>
+                {cartProgressLabel(details.cart)}
+              </ThemedText>
+            ) : null}
+          </View>
         </View>
 
-        <ScrollView style={styles.itemsScroll} contentContainerStyle={styles.itemsList}>
-          {record.items.length === 0 ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.emptyItems}>
-              No items yet. Add what you bought and the total is calculated for you.
-            </ThemedText>
-          ) : (
-            record.items.map((item) => (
-              <ItemRow
-                key={item.id}
-                item={item}
-                onEdit={() => details.openEditItem(item)}
-                onDelete={() => details.requestDeleteItem(item.id)}
-                onQuantityChange={(quantity) => details.setItemQuantity(item.id, quantity)}
-              />
-            ))
-          )}
-        </ScrollView>
+        {/* Only the items scroll; press and hold one to drag it to a new position. */}
+        <ShoppingItemList details={details} contentContainerStyle={styles.itemsList} />
 
         {/* Fixed bottom: always reachable, whatever the scroll position. */}
         <View style={[styles.pinnedBottom, { borderTopColor: theme.backgroundSelected }]}>
@@ -222,60 +223,6 @@ function Stat({ label, value, valueColor = 'text', prominent = false, caption, s
   );
 }
 
-type ItemRowProps = {
-  item: ShoppingItem;
-  onEdit: () => void;
-  onDelete: () => void;
-  onQuantityChange: (quantity: number) => void;
-};
-
-/** Product name and unit price; item total over a −/+ quantity stepper; and a "⋮" menu for edit / delete. */
-function ItemRow({ item, onEdit, onDelete, onQuantityChange }: ItemRowProps) {
-  const theme = useTheme();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  return (
-    <ThemedView type="backgroundElement" style={styles.itemRow}>
-      <View style={styles.itemText}>
-        <ThemedText style={styles.itemName} numberOfLines={2}>
-          {item.name}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {formatCentavos(item.priceCentavos)} each
-        </ThemedText>
-      </View>
-
-      <View style={styles.itemAmount}>
-        <ThemedText style={styles.itemTotal} numberOfLines={1}>
-          {formatCentavos(itemTotal(item))}
-        </ThemedText>
-        <QuantityStepper value={item.quantity} onChange={onQuantityChange} itemName={item.name} />
-      </View>
-
-      <Pressable
-        onPress={() => setIsMenuOpen(true)}
-        hitSlop={8}
-        accessibilityRole="button"
-        accessibilityLabel={`More actions for ${item.name}`}
-        style={({ pressed }) => [
-          styles.menuButton,
-          pressed && { backgroundColor: theme.backgroundSelected },
-        ]}>
-        <Feather name="more-vertical" size={18} color={theme.textSecondary} />
-      </Pressable>
-
-      <ActionMenu
-        visible={isMenuOpen}
-        onClose={() => setIsMenuOpen(false)}
-        items={[
-          { key: 'edit', label: 'Edit', icon: 'edit-2', onPress: onEdit },
-          { key: 'delete', label: 'Delete', icon: 'trash-2', tone: 'danger', onPress: onDelete },
-        ]}
-      />
-    </ThemedView>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -295,9 +242,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: Spacing.two,
     gap: Spacing.three,
-  },
-  itemsScroll: {
-    flex: 1,
   },
   itemsList: {
     paddingHorizontal: Spacing.four,
@@ -368,43 +312,14 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
   },
+  itemsTitle: {
+    flexShrink: 1,
+  },
   itemsHeader: {
-    marginTop: Spacing.two,
-  },
-  emptyItems: {
-    textAlign: 'center',
-    paddingVertical: Spacing.three,
-  },
-  itemRow: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.two,
-    paddingLeft: Spacing.three,
-    paddingRight: Spacing.one,
     gap: Spacing.two,
-  },
-  itemText: {
-    flex: 1,
-    gap: Spacing.half,
-  },
-  itemName: {
-    fontWeight: '600',
-  },
-  itemAmount: {
-    alignItems: 'flex-end',
-    gap: Spacing.half,
-  },
-  itemTotal: {
-    fontWeight: '700',
-    // Lines the total's right edge up with the + glyph, not its wider touch area.
-    paddingRight: Spacing.one + Spacing.half,
-  },
-  menuButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginTop: Spacing.two,
   },
 });

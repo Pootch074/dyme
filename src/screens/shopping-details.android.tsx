@@ -1,14 +1,12 @@
 import {
   AlertDialog,
+  Box,
   Button,
-  Card,
   Column,
-  DropdownMenu,
-  DropdownMenuItem,
   ElevatedCard,
   Icon,
   IconButton,
-  LazyColumn,
+  RNHostView,
   Row,
   Spacer,
   Surface,
@@ -29,26 +27,28 @@ import {
   width,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { router } from "expo-router";
-import { useState } from "react";
+import { StyleSheet, View } from "react-native";
 
 import { Icons } from "@/components/compose/icons";
 import { ItemEntrySheet } from "@/components/compose/item-entry-sheet";
-import { QuantityStepper } from "@/components/compose/quantity-stepper";
 import {
   ComposeScreen,
   ScreenHeader,
   SectionLabel,
 } from "@/components/compose/screen";
 import { ShoppingRecordSheet } from "@/components/compose/shopping-record-sheet";
-import { useAppMaterialColors } from "@/components/compose/theme";
+import {
+  useAppMaterialColors,
+  useSuccessColors,
+} from "@/components/compose/theme";
+import { ShoppingItemList } from "@/components/shopping-item-list";
 import { useShoppingDetails } from "@/hooks/use-shopping-details";
 import { useShoppingRecordForm } from "@/hooks/use-shopping-record-form";
 import { formatCentavos } from "@/utils/money";
 import {
   budgetWarning,
+  cartProgressLabel,
   formatShoppingDateTime,
-  itemTotal,
-  type ShoppingItem,
 } from "@/utils/shopping";
 
 export type ShoppingDetailsScreenProps = {
@@ -61,6 +61,7 @@ export function ShoppingDetailsScreen({
   const details = useShoppingDetails(recordId);
   const recordForm = useShoppingRecordForm();
   const colors = useAppMaterialColors();
+  const success = useSuccessColors();
   const { record, total, status } = details;
 
   if (!record) {
@@ -182,37 +183,53 @@ export function ShoppingDetailsScreen({
             </Surface>
           ) : null}
 
-          <SectionLabel>Items</SectionLabel>
+          <Row modifiers={[fillMaxWidth()]} verticalAlignment="center">
+            <Row
+              modifiers={[weight(1)]}
+              verticalAlignment="center"
+              horizontalArrangement={{ spacedBy: 8 }}
+            >
+              <SectionLabel>Items</SectionLabel>
+              {record.items.length > 1 ? (
+                <Text
+                  color={colors.onSurfaceVariant}
+                  style={{ typography: "labelMedium" }}
+                  maxLines={1}
+                >
+                  · Hold to move
+                </Text>
+              ) : null}
+            </Row>
+            {details.cart.total > 0 ? (
+              <Text
+                color={
+                  details.cart.inCart === details.cart.total
+                    ? success.accent
+                    : colors.onSurfaceVariant
+                }
+                style={{ typography: "labelLarge" }}
+              >
+                {cartProgressLabel(details.cart)}
+              </Text>
+            ) : null}
+          </Row>
         </Column>
 
-        {/* Only the items scroll. */}
-        <LazyColumn
-          modifiers={[fillMaxWidth(), weight(1)]}
-          contentPadding={{ start: 16, end: 16, top: 0, bottom: 16 }}
-          verticalArrangement={{ spacedBy: 12 }}
-        >
-          {record.items.length === 0 ? (
-            <Text
-              color={colors.onSurfaceVariant}
-              style={{ typography: "bodyMedium", textAlign: "center" }}
-              modifiers={[fillMaxWidth(), padding(0, 16, 0, 16)]}
-            >
-              No items yet. Add what you bought and the total is calculated for
-              you.
-            </Text>
-          ) : null}
-          {record.items.map((item) => (
-            <ItemRow
-              key={item.id}
-              item={item}
-              onEdit={() => details.openEditItem(item)}
-              onDelete={() => details.requestDeleteItem(item.id)}
-              onQuantityChange={(quantity) =>
-                details.setItemQuantity(item.id, quantity)
-              }
-            />
-          ))}
-        </LazyColumn>
+        {/* Only the items scroll. They're React Native views hosted in Compose,
+            because dragging an item to reorder needs gestures Compose here
+            can't track; press and hold one to move it. The Box takes the space
+            between the header and the Add button: RNHostView always fills its
+            parent and ignores a weight, so on its own it hid the button. */}
+        <Box modifiers={[fillMaxWidth(), weight(1)]}>
+          <RNHostView>
+            <View style={styles.fill}>
+              <ShoppingItemList
+                details={details}
+                contentContainerStyle={styles.itemsList}
+              />
+            </View>
+          </RNHostView>
+        </Box>
 
         {/* Fixed bottom: always reachable, whatever the scroll position. */}
         <Surface color={colors.surfaceContainer} modifiers={[fillMaxWidth()]}>
@@ -336,101 +353,6 @@ function StatDivider() {
   );
 }
 
-type ItemRowProps = {
-  item: ShoppingItem;
-  onEdit: () => void;
-  onDelete: () => void;
-  onQuantityChange: (quantity: number) => void;
-};
-
-/** Product name and unit price; item total over a −/+ quantity stepper; and a "⋮" menu for edit / delete. */
-function ItemRow({ item, onEdit, onDelete, onQuantityChange }: ItemRowProps) {
-  const colors = useAppMaterialColors();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  const runAndClose = (action: () => void) => () => {
-    setIsMenuOpen(false);
-    action();
-  };
-
-  return (
-    <Card modifiers={[fillMaxWidth()]}>
-      <Row
-        modifiers={[fillMaxWidth(), padding(16, 8, 0, 8)]}
-        verticalAlignment="center"
-      >
-        <Column modifiers={[weight(1)]} verticalArrangement={{ spacedBy: 2 }}>
-          <Text
-            maxLines={2}
-            overflow="ellipsis"
-            style={{ typography: "titleMedium" }}
-          >
-            {item.name}
-          </Text>
-          <Text
-            color={colors.onSurfaceVariant}
-            style={{ typography: "bodyMedium" }}
-          >
-            {`${formatCentavos(item.priceCentavos)} each`}
-          </Text>
-        </Column>
-
-        <Column horizontalAlignment="end">
-          <Text
-            style={{ typography: "titleMedium", fontWeight: "700" }}
-            modifiers={[padding(0, 0, 8, 0)]}
-          >
-            {formatCentavos(itemTotal(item))}
-          </Text>
-          <QuantityStepper
-            value={item.quantity}
-            onChange={onQuantityChange}
-            itemName={item.name}
-          />
-        </Column>
-
-        <DropdownMenu
-          expanded={isMenuOpen}
-          onDismissRequest={() => setIsMenuOpen(false)}
-        >
-          <DropdownMenu.Trigger>
-            <IconButton onClick={() => setIsMenuOpen(true)}>
-              <Icon
-                source={Icons.moreVert}
-                contentDescription={`More actions for ${item.name}`}
-              />
-            </IconButton>
-          </DropdownMenu.Trigger>
-          <DropdownMenu.Items>
-            <DropdownMenuItem onClick={runAndClose(onEdit)}>
-              <DropdownMenuItem.LeadingIcon>
-                <Icon source={Icons.edit} />
-              </DropdownMenuItem.LeadingIcon>
-              <DropdownMenuItem.Text>
-                <Text>Edit</Text>
-              </DropdownMenuItem.Text>
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={runAndClose(onDelete)}
-              elementColors={{
-                textColor: colors.error,
-                leadingIconColor: colors.error,
-              }}
-            >
-              <DropdownMenuItem.LeadingIcon>
-                <Icon source={Icons.delete} tint={colors.error} />
-              </DropdownMenuItem.LeadingIcon>
-              <DropdownMenuItem.Text>
-                <Text color={colors.error}>Delete</Text>
-              </DropdownMenuItem.Text>
-            </DropdownMenuItem>
-          </DropdownMenu.Items>
-        </DropdownMenu>
-      </Row>
-    </Card>
-  );
-}
-
 type ConfirmDeleteProps = {
   title: string;
   message: string;
@@ -469,3 +391,13 @@ function ConfirmDelete({
     </AlertDialog>
   );
 }
+
+const styles = StyleSheet.create({
+  fill: {
+    flex: 1,
+  },
+  itemsList: {
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+});

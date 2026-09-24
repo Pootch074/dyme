@@ -79,7 +79,7 @@ export function ItemEntryDialog({ details, subtitle }: ItemEntryDialogProps) {
           <StepButton
             icon="minus"
             label="Decrease quantity"
-            disabled={quantityNumber <= 1}
+            disabled={quantityNumber <= details.minQuantity}
             onPress={() => details.stepQuantity(-1)}
           />
           <Pressable
