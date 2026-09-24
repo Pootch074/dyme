@@ -1,3 +1,4 @@
+import type { Ref } from 'react';
 import { StyleSheet, TextInput, type TextInputProps } from 'react-native';
 
 import { Spacing } from '@/constants/theme';
@@ -14,6 +15,8 @@ type FormInputProps = {
   editable?: boolean;
   multiline?: boolean;
   accessibilityLabel?: string;
+  onFocus?: () => void;
+  ref?: Ref<TextInput>;
 };
 
 export function FormInput({
@@ -25,12 +28,16 @@ export function FormInput({
   editable = true,
   multiline = false,
   accessibilityLabel,
+  onFocus,
+  ref,
 }: FormInputProps) {
   const theme = useTheme();
 
   return (
     <TextInput
+      ref={ref}
       value={value}
+      onFocus={onFocus}
       onChangeText={onChangeText}
       placeholder={placeholder}
       placeholderTextColor={theme.textSecondary}

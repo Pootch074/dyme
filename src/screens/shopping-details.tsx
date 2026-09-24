@@ -7,8 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ActionMenu } from '@/components/action-menu';
 import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
-import { ConfirmDialog, Dialog } from '@/components/dialog';
-import { FormInput } from '@/components/form-input';
+import { ConfirmDialog } from '@/components/dialog';
+import { ItemEntryDialog } from '@/components/item-entry-dialog';
 import { QuantityStepper } from '@/components/quantity-stepper';
 import { RowActionButton } from '@/components/row-action-button';
 import { ShoppingRecordDialog } from '@/components/shopping-record-dialog';
@@ -59,7 +59,8 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        <ScrollView contentContainerStyle={styles.content}>
+        {/* Fixed top: header, totals and any budget warning stay in view while the items scroll. */}
+        <View style={styles.pinnedTop}>
           <BackButton />
           <View style={styles.titleRow}>
             <View style={styles.titleText}>
@@ -126,11 +127,12 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
             </View>
           ) : null}
 
-          <Button label="Add an item" icon="plus" onPress={details.openAddItem} />
-
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.itemsHeader}>
             Items
           </ThemedText>
+        </View>
+
+        <ScrollView style={styles.itemsScroll} contentContainerStyle={styles.itemsList}>
           {record.items.length === 0 ? (
             <ThemedText type="small" themeColor="textSecondary" style={styles.emptyItems}>
               No items yet. Add what you bought and the total is calculated for you.
@@ -147,62 +149,14 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
             ))
           )}
         </ScrollView>
+
+        {/* Fixed bottom: always reachable, whatever the scroll position. */}
+        <View style={[styles.pinnedBottom, { borderTopColor: theme.backgroundSelected }]}>
+          <Button label="Add an item" icon="plus" onPress={details.openAddItem} />
+        </View>
       </SafeAreaView>
 
-      <Dialog
-        visible={details.itemDialog !== null}
-        title={details.itemDialogTitle}
-        subtitle={record.location}
-        onClose={details.closeItemDialog}>
-        <Field label="Product name *" error={details.itemErrors.name}>
-          <FormInput
-            value={details.name}
-            onChangeText={details.setName}
-            placeholder="e.g. Cooking oil"
-            accessibilityLabel="Product name, required"
-            invalid={Boolean(details.itemErrors.name)}
-          />
-        </Field>
-        <View style={styles.fieldRow}>
-          <Field label="Price (₱) *" error={details.itemErrors.price} style={styles.flex}>
-            <FormInput
-              value={details.price}
-              onChangeText={details.setPrice}
-              placeholder="0.00"
-              accessibilityLabel="Price, required"
-              keyboardType="decimal-pad"
-              invalid={Boolean(details.itemErrors.price)}
-            />
-          </Field>
-          <Field label="Quantity *" error={details.itemErrors.quantity} style={styles.flex}>
-            <FormInput
-              value={details.quantity}
-              onChangeText={details.setQuantity}
-              placeholder="1"
-              accessibilityLabel="Quantity, required"
-              keyboardType="number-pad"
-              invalid={Boolean(details.itemErrors.quantity)}
-            />
-          </Field>
-        </View>
-        <ThemedView type="backgroundSelected" style={styles.liveTotal}>
-          <ThemedText type="small" themeColor="textSecondary">
-            Item total
-          </ThemedText>
-          <ThemedText type="smallBold">
-            {details.liveItemTotal === null ? '—' : formatCentavos(details.liveItemTotal)}
-          </ThemedText>
-        </ThemedView>
-        <View style={styles.fieldRow}>
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={details.closeItemDialog}
-            style={styles.flex}
-          />
-          <Button label="Save" onPress={details.saveItem} style={styles.flex} />
-        </View>
-      </Dialog>
+      <ItemEntryDialog details={details} subtitle={record.location} />
 
       <ConfirmDialog
         visible={details.pendingDeleteItem !== null}
@@ -322,29 +276,6 @@ function ItemRow({ item, onEdit, onDelete, onQuantityChange }: ItemRowProps) {
   );
 }
 
-type FieldProps = {
-  label: string;
-  error?: string | null;
-  style?: object;
-  children: React.ReactNode;
-};
-
-function Field({ label, error, style, children }: FieldProps) {
-  return (
-    <View style={[styles.field, style]}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-      {children}
-      {error ? (
-        <ThemedText type="small" themeColor="danger" accessibilityLiveRegion="polite">
-          {error}
-        </ThemedText>
-      ) : null}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -358,6 +289,25 @@ const styles = StyleSheet.create({
   content: {
     padding: Spacing.four,
     gap: Spacing.three,
+  },
+  pinnedTop: {
+    paddingHorizontal: Spacing.four,
+    paddingTop: Spacing.four,
+    paddingBottom: Spacing.two,
+    gap: Spacing.three,
+  },
+  itemsScroll: {
+    flex: 1,
+  },
+  itemsList: {
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.three,
+    gap: Spacing.three,
+  },
+  pinnedBottom: {
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   titleRow: {
     flexDirection: 'row',
@@ -456,22 +406,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  field: {
-    gap: Spacing.one,
-  },
-  fieldRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-  },
-  liveTotal: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderRadius: Spacing.two,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  flex: {
-    flex: 1,
   },
 });

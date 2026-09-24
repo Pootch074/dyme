@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { useShopping } from '@/hooks/use-shopping';
+import { applyKey, type KeypadKey } from '@/utils/keypad';
 import { centavosToInput, moneyErrorMessage, parseMoneyInput } from '@/utils/money';
 import {
   budgetStatus,
@@ -11,6 +12,9 @@ import {
 } from '@/utils/shopping';
 
 type ItemFieldErrors = Partial<Record<'name' | 'price' | 'quantity', string>>;
+
+/** Field the Add Item dialog is editing: price and quantity use the number pad, the name uses the keyboard. */
+export type ItemField = 'price' | 'quantity' | 'name';
 
 /** Validates a quantity: required, a whole number, at least 1. */
 function parseQuantity(input: string): { ok: true; quantity: number } | { ok: false; error: string } {
@@ -45,6 +49,7 @@ export function useShoppingDetails(recordId: string) {
   const [price, setPrice] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [itemErrors, setItemErrors] = useState<ItemFieldErrors>({});
+  const [activeField, setActiveField] = useState<ItemField>('price');
 
   // Other dialogs
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
@@ -67,6 +72,8 @@ export function useShoppingDetails(recordId: string) {
     setPrice('');
     setQuantity('1');
     setItemErrors({});
+    // Price first: people often read the price tag before naming the item.
+    setActiveField('price');
     setItemDialog({ mode: 'add' });
   };
 
@@ -75,10 +82,35 @@ export function useShoppingDetails(recordId: string) {
     setPrice(centavosToInput(item.priceCentavos));
     setQuantity(String(item.quantity));
     setItemErrors({});
+    setActiveField('price');
     setItemDialog({ mode: 'edit', itemId: item.id });
   };
 
   const closeItemDialog = () => setItemDialog(null);
+
+  /**
+   * Number pad key: types into the quantity when it's active, otherwise into
+   * the price (a key pressed while the name is focused goes back to the price).
+   */
+  const pressKey = (key: KeypadKey) => {
+    if (activeField === 'quantity') {
+      setQuantity((prev) => applyKey('quantity', prev, key));
+      clearItemError('quantity');
+      return;
+    }
+    if (activeField === 'name') setActiveField('price');
+    setPrice((prev) => applyKey('price', prev, key));
+    clearItemError('price');
+  };
+
+  /** The dialog's −/+ buttons; never below 1. */
+  const stepQuantity = (delta: number) => {
+    setQuantity((prev) => {
+      const current = /^\d+$/.test(prev) ? Number(prev) : 0;
+      return String(Math.max(1, current + delta));
+    });
+    clearItemError('quantity');
+  };
 
   const saveItem = () => {
     if (!record || !itemDialog) return;
@@ -153,6 +185,10 @@ export function useShoppingDetails(recordId: string) {
       setQuantity(text);
       clearItemError('quantity');
     },
+    activeField,
+    setActiveField,
+    pressKey,
+    stepQuantity,
     openAddItem,
     openEditItem,
     closeItemDialog,

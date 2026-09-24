@@ -22,11 +22,20 @@ type DialogProps = {
   title: string;
   subtitle?: string;
   onClose: () => void;
+  /** Whether tapping outside the card closes it (default true). Turn off for forms where a stray tap would lose input. */
+  closeOnBackdrop?: boolean;
   children: ReactNode;
 };
 
 /** Centered modal card with a title, close button and scrollable body. */
-export function Dialog({ visible, title, subtitle, onClose, children }: DialogProps) {
+export function Dialog({
+  visible,
+  title,
+  subtitle,
+  onClose,
+  closeOnBackdrop = true,
+  children,
+}: DialogProps) {
   const theme = useTheme();
 
   return (
@@ -36,7 +45,8 @@ export function Dialog({ visible, title, subtitle, onClose, children }: DialogPr
         style={styles.root}>
         <Pressable
           style={styles.backdrop}
-          onPress={onClose}
+          onPress={closeOnBackdrop ? onClose : undefined}
+          accessible={closeOnBackdrop}
           accessibilityRole="button"
           accessibilityLabel="Dismiss dialog"
         />

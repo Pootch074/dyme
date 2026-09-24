@@ -2,10 +2,11 @@ import {
   OutlinedTextField,
   Text,
   type TextFieldKeyboardType,
+  type TextFieldRef,
   useNativeState,
 } from '@expo/ui/jetpack-compose';
-import { fillMaxWidth } from '@expo/ui/jetpack-compose/modifiers';
-import { useEffect, useRef } from 'react';
+import { fillMaxWidth, type ModifierConfig } from '@expo/ui/jetpack-compose/modifiers';
+import { type Ref, useEffect, useRef } from 'react';
 
 type ControlledTextFieldProps = {
   value: string;
@@ -17,6 +18,11 @@ type ControlledTextFieldProps = {
   keyboardType?: TextFieldKeyboardType;
   multiline?: boolean;
   prefix?: string;
+  onFocusChange?: (focused: boolean) => void;
+  /** Imperative handle, e.g. to blur the field when another control takes over. */
+  fieldRef?: Ref<TextFieldRef>;
+  /** Defaults to full width. */
+  modifiers?: ModifierConfig[];
 };
 
 /**
@@ -33,6 +39,9 @@ export function ControlledTextField({
   keyboardType = 'text',
   multiline = false,
   prefix,
+  onFocusChange,
+  fieldRef,
+  modifiers,
 }: ControlledTextFieldProps) {
   const text = useNativeState(value);
   // Last value the field and JS agreed on, so typing doesn't echo back into
@@ -48,7 +57,9 @@ export function ControlledTextField({
 
   return (
     <OutlinedTextField
+      ref={fieldRef}
       value={text}
+      onFocusChanged={onFocusChange}
       onValueChange={(next) => {
         lastValue.current = next;
         onChangeText(next);
@@ -61,7 +72,7 @@ export function ControlledTextField({
         capitalization: keyboardType === 'text' ? 'sentences' : 'none',
         imeAction: multiline ? 'default' : 'next',
       }}
-      modifiers={[fillMaxWidth()]}>
+      modifiers={modifiers ?? [fillMaxWidth()]}>
       <OutlinedTextField.Label>
         <Text>{label}</Text>
       </OutlinedTextField.Label>

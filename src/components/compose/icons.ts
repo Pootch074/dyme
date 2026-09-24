@@ -7,8 +7,10 @@
 export const Icons = {
   add: require('@/assets/icons/add.xml'),
   arrowBack: require('@/assets/icons/arrow_back.xml'),
+  backspace: require('@/assets/icons/backspace.xml'),
   brightnessAuto: require('@/assets/icons/brightness_auto.xml'),
   calendar: require('@/assets/icons/calendar_today.xml'),
+  cancel: require('@/assets/icons/cancel.xml'),
   chevronRight: require('@/assets/icons/chevron_right.xml'),
   close: require('@/assets/icons/close.xml'),
   darkMode: require('@/assets/icons/dark_mode.xml'),

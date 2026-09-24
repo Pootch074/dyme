@@ -9,8 +9,6 @@ import {
   Icon,
   IconButton,
   LazyColumn,
-  ModalBottomSheet,
-  OutlinedButton,
   Row,
   Spacer,
   Surface,
@@ -20,14 +18,13 @@ import {
 } from "@expo/ui/jetpack-compose";
 import {
   clip,
+  fillMaxSize,
   fillMaxWidth,
   height,
-  imePadding,
   type ModifierConfig,
   padding,
   paddingAll,
   Shapes,
-  verticalScroll,
   weight,
   width,
 } from "@expo/ui/jetpack-compose/modifiers";
@@ -35,6 +32,7 @@ import { router } from "expo-router";
 import { useState } from "react";
 
 import { Icons } from "@/components/compose/icons";
+import { ItemEntrySheet } from "@/components/compose/item-entry-sheet";
 import { QuantityStepper } from "@/components/compose/quantity-stepper";
 import {
   ComposeScreen,
@@ -42,7 +40,6 @@ import {
   SectionLabel,
 } from "@/components/compose/screen";
 import { ShoppingRecordSheet } from "@/components/compose/shopping-record-sheet";
-import { ControlledTextField } from "@/components/compose/text-field";
 import { useAppMaterialColors } from "@/components/compose/theme";
 import { useShoppingDetails } from "@/hooks/use-shopping-details";
 import { useShoppingRecordForm } from "@/hooks/use-shopping-record-form";
@@ -86,135 +83,148 @@ export function ShoppingDetailsScreen({
 
   return (
     <ComposeScreen>
-      <LazyColumn
-        modifiers={[fillMaxWidth()]}
-        contentPadding={{ start: 16, end: 16, top: 16, bottom: 32 }}
-        verticalArrangement={{ spacedBy: 12 }}
-      >
-        <Row modifiers={[fillMaxWidth()]}>
-          <Column modifiers={[weight(1)]}>
-            <ScreenHeader
-              title={record.location}
-              subtitle={formatShoppingDateTime(new Date(record.dateTime))}
-              onBack={() => router.back()}
-            />
-          </Column>
-          <IconButton onClick={() => recordForm.open(record)}>
-            <Icon
-              source={Icons.edit}
-              contentDescription="Edit shopping details"
-            />
-          </IconButton>
-          <IconButton onClick={details.requestDeleteRecord}>
-            <Icon
-              source={Icons.delete}
-              contentDescription="Delete shopping record"
-            />
-          </IconButton>
-        </Row>
-
-        {/* One compact row: Total items | Total expenses | Budget left, each
-            centered in its cell. Cells are top-aligned so labels and values share
-            a line; the budget's "of ₱…" caption hangs below its own cell. The
-            budget is edited via Edit above. */}
-        <ElevatedCard modifiers={[fillMaxWidth()]}>
-          <Row
-            modifiers={[fillMaxWidth(), padding(12, 14, 12, 14)]}
-            horizontalArrangement={{ spacedBy: 12 }}
-            verticalAlignment="top"
-          >
-            <Stat
-              label="Total items"
-              value={String(details.itemCount)}
-              modifiers={[weight(0.8)]}
-            />
-            <StatDivider />
-            <Stat
-              label="Total expenses"
-              value={formatCentavos(total)}
-              valueColor={colors.primary}
-              prominent
-              modifiers={[weight(1.1)]}
-            />
-            <StatDivider />
-            <Stat
-              label={status.kind === "over" ? "Over budget" : "Budget left"}
-              value={
-                status.kind === "none"
-                  ? "Not set"
-                  : formatCentavos(
-                      status.kind === "over" ? status.over : status.left,
-                    )
-              }
-              valueColor={
-                status.kind === "none" || status.kind === "under"
-                  ? undefined
-                  : colors.error
-              }
-              caption={
-                status.kind === "none"
-                  ? undefined
-                  : `of ${formatCentavos(status.budget)}`
-              }
-              prominent
-              modifiers={[weight(1.1)]}
-            />
+      <Column modifiers={[fillMaxSize()]}>
+        {/* Fixed top: header, totals and any budget warning stay in view while the items scroll. */}
+        <Column
+          modifiers={[fillMaxWidth(), padding(16, 16, 16, 8)]}
+          verticalArrangement={{ spacedBy: 12 }}
+        >
+          <Row modifiers={[fillMaxWidth()]}>
+            <Column modifiers={[weight(1)]}>
+              <ScreenHeader
+                title={record.location}
+                subtitle={formatShoppingDateTime(new Date(record.dateTime))}
+                onBack={() => router.back()}
+              />
+            </Column>
+            <IconButton onClick={() => recordForm.open(record)}>
+              <Icon
+                source={Icons.edit}
+                contentDescription="Edit shopping details"
+              />
+            </IconButton>
+            <IconButton onClick={details.requestDeleteRecord}>
+              <Icon
+                source={Icons.delete}
+                contentDescription="Delete shopping record"
+              />
+            </IconButton>
           </Row>
-        </ElevatedCard>
 
-        {warning ? (
-          <Surface
-            color={colors.errorContainer}
-            contentColor={colors.onErrorContainer}
-            modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(12))]}
-          >
+          {/* One compact row: Total items | Total expenses | Budget left, each
+              centered in its cell. Cells are top-aligned so labels and values share
+              a line; the budget's "of ₱…" caption hangs below its own cell. The
+              budget is edited via Edit above. */}
+          <ElevatedCard modifiers={[fillMaxWidth()]}>
             <Row
-              modifiers={[fillMaxWidth(), paddingAll(16)]}
+              modifiers={[fillMaxWidth(), padding(12, 14, 12, 14)]}
               horizontalArrangement={{ spacedBy: 12 }}
-              verticalAlignment="center"
+              verticalAlignment="top"
             >
-              <Icon source={Icons.warning} tint={colors.onErrorContainer} />
-              <Text
-                style={{ typography: "titleSmall" }}
-                modifiers={[weight(1)]}
-              >
-                {warning}
-              </Text>
+              <Stat
+                label="Total items"
+                value={String(details.itemCount)}
+                modifiers={[weight(0.8)]}
+              />
+              <StatDivider />
+              <Stat
+                label="Total expenses"
+                value={formatCentavos(total)}
+                valueColor={colors.primary}
+                prominent
+                modifiers={[weight(1.1)]}
+              />
+              <StatDivider />
+              <Stat
+                label={status.kind === "over" ? "Over budget" : "Budget left"}
+                value={
+                  status.kind === "none"
+                    ? "Not set"
+                    : formatCentavos(
+                        status.kind === "over" ? status.over : status.left,
+                      )
+                }
+                valueColor={
+                  status.kind === "none" || status.kind === "under"
+                    ? undefined
+                    : colors.error
+                }
+                caption={
+                  status.kind === "none"
+                    ? undefined
+                    : `of ${formatCentavos(status.budget)}`
+                }
+                prominent
+                modifiers={[weight(1.1)]}
+              />
             </Row>
-          </Surface>
-        ) : null}
+          </ElevatedCard>
 
-        <Button onClick={details.openAddItem} modifiers={[fillMaxWidth()]}>
-          <Icon source={Icons.add} size={18} />
-          <Spacer modifiers={[width(8)]} />
-          <Text>Add an item</Text>
-        </Button>
+          {warning ? (
+            <Surface
+              color={colors.errorContainer}
+              contentColor={colors.onErrorContainer}
+              modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(12))]}
+            >
+              <Row
+                modifiers={[fillMaxWidth(), paddingAll(16)]}
+                horizontalArrangement={{ spacedBy: 12 }}
+                verticalAlignment="center"
+              >
+                <Icon source={Icons.warning} tint={colors.onErrorContainer} />
+                <Text
+                  style={{ typography: "titleSmall" }}
+                  modifiers={[weight(1)]}
+                >
+                  {warning}
+                </Text>
+              </Row>
+            </Surface>
+          ) : null}
 
-        <SectionLabel>Items</SectionLabel>
-        {record.items.length === 0 ? (
-          <Text
-            color={colors.onSurfaceVariant}
-            style={{ typography: "bodyMedium", textAlign: "center" }}
-            modifiers={[fillMaxWidth(), padding(0, 16, 0, 16)]}
-          >
-            No items yet. Add what you bought and the total is calculated for
-            you.
-          </Text>
-        ) : null}
-        {record.items.map((item) => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            onEdit={() => details.openEditItem(item)}
-            onDelete={() => details.requestDeleteItem(item.id)}
-            onQuantityChange={(quantity) =>
-              details.setItemQuantity(item.id, quantity)
-            }
-          />
-        ))}
-      </LazyColumn>
+          <SectionLabel>Items</SectionLabel>
+        </Column>
 
-      {details.itemDialog ? <ItemSheet details={details} /> : null}
+        {/* Only the items scroll. */}
+        <LazyColumn
+          modifiers={[fillMaxWidth(), weight(1)]}
+          contentPadding={{ start: 16, end: 16, top: 0, bottom: 16 }}
+          verticalArrangement={{ spacedBy: 12 }}
+        >
+          {record.items.length === 0 ? (
+            <Text
+              color={colors.onSurfaceVariant}
+              style={{ typography: "bodyMedium", textAlign: "center" }}
+              modifiers={[fillMaxWidth(), padding(0, 16, 0, 16)]}
+            >
+              No items yet. Add what you bought and the total is calculated for
+              you.
+            </Text>
+          ) : null}
+          {record.items.map((item) => (
+            <ItemRow
+              key={item.id}
+              item={item}
+              onEdit={() => details.openEditItem(item)}
+              onDelete={() => details.requestDeleteItem(item.id)}
+              onQuantityChange={(quantity) =>
+                details.setItemQuantity(item.id, quantity)
+              }
+            />
+          ))}
+        </LazyColumn>
+
+        {/* Fixed bottom: always reachable, whatever the scroll position. */}
+        <Surface color={colors.surfaceContainer} modifiers={[fillMaxWidth()]}>
+          <Button onClick={details.openAddItem} modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}>
+            <Icon source={Icons.add} size={18} />
+            <Spacer modifiers={[width(8)]} />
+            <Text>Add an item</Text>
+          </Button>
+        </Surface>
+      </Column>
+
+      {details.itemDialog ? <ItemEntrySheet details={details} /> : null}
 
       {details.pendingDeleteItem ? (
         <ConfirmDelete
@@ -418,93 +428,6 @@ function ItemRow({ item, onEdit, onDelete, onQuantityChange }: ItemRowProps) {
         </DropdownMenu>
       </Row>
     </Card>
-  );
-}
-
-type DetailsProps = {
-  details: ReturnType<typeof useShoppingDetails>;
-};
-
-/** Add / Edit Item: name, price, quantity, and the live Item Total. */
-function ItemSheet({ details }: DetailsProps) {
-  const colors = useAppMaterialColors();
-
-  return (
-    <ModalBottomSheet
-      onDismissRequest={details.closeItemDialog}
-      skipPartiallyExpanded
-    >
-      <Column
-        modifiers={[
-          fillMaxWidth(),
-          verticalScroll(),
-          imePadding(),
-          padding(24, 0, 24, 24),
-        ]}
-        verticalArrangement={{ spacedBy: 16 }}
-      >
-        <Text style={{ typography: "headlineSmall" }}>
-          {details.itemDialogTitle}
-        </Text>
-        <ControlledTextField
-          value={details.name}
-          onChangeText={details.setName}
-          label="Product name *"
-          isError={Boolean(details.itemErrors.name)}
-          supportingText={details.itemErrors.name}
-        />
-        <ControlledTextField
-          value={details.price}
-          onChangeText={details.setPrice}
-          label="Price *"
-          prefix="₱"
-          keyboardType="decimal"
-          isError={Boolean(details.itemErrors.price)}
-          supportingText={details.itemErrors.price}
-        />
-        <ControlledTextField
-          value={details.quantity}
-          onChangeText={details.setQuantity}
-          label="Quantity *"
-          keyboardType="number"
-          isError={Boolean(details.itemErrors.quantity)}
-          supportingText={details.itemErrors.quantity}
-        />
-        <Surface
-          color={colors.secondaryContainer}
-          contentColor={colors.onSecondaryContainer}
-          modifiers={[fillMaxWidth(), clip(Shapes.RoundedCorner(12))]}
-        >
-          <Row
-            modifiers={[fillMaxWidth(), paddingAll(16)]}
-            verticalAlignment="center"
-          >
-            <Text style={{ typography: "bodyLarge" }} modifiers={[weight(1)]}>
-              Item total
-            </Text>
-            <Text style={{ typography: "titleLarge", fontWeight: "700" }}>
-              {details.liveItemTotal === null
-                ? "—"
-                : formatCentavos(details.liveItemTotal)}
-            </Text>
-          </Row>
-        </Surface>
-        <Row
-          modifiers={[fillMaxWidth()]}
-          horizontalArrangement={{ spacedBy: 8 }}
-        >
-          <OutlinedButton
-            onClick={details.closeItemDialog}
-            modifiers={[weight(1)]}
-          >
-            <Text>Cancel</Text>
-          </OutlinedButton>
-          <Button onClick={details.saveItem} modifiers={[weight(1)]}>
-            <Text>Save</Text>
-          </Button>
-        </Row>
-      </Column>
-    </ModalBottomSheet>
   );
 }
 
