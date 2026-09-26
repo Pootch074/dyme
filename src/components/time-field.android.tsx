@@ -1,8 +1,8 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { Feather } from '@react-native-vector-icons/feather';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { DialogHost, TimeDialog } from './compose/picker-dialogs';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
@@ -16,12 +16,11 @@ type TimeFieldProps = {
   onChange: (value: string | null) => void;
 };
 
-// iOS (Android and web have their own versions of this file).
+// Opens the app's Material 3 clock dialog (12-hour, AM/PM), the same one the Compose screens use.
 export function TimeField({ label, value, onChange }: TimeFieldProps) {
   const theme = useTheme();
-  const [showIosPicker, setShowIosPicker] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const pickerValue = withTimePart(new Date(), value ?? '12:00');
-  const openPicker = () => setShowIosPicker(true);
 
   return (
     <View style={styles.container}>
@@ -30,7 +29,9 @@ export function TimeField({ label, value, onChange }: TimeFieldProps) {
       </ThemedText>
       <View style={styles.row}>
         <Pressable
-          onPress={openPicker}
+          onPress={() => setShowPicker(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`${label}, ${value ? formatTimeOnly12h(pickerValue) : 'not recorded'}`}
           style={({ pressed }) => [styles.fieldPressable, pressed && styles.pressed]}>
           <ThemedView type="backgroundSelected" style={styles.field}>
             <ThemedText themeColor={value ? 'text' : 'textSecondary'}>
@@ -51,18 +52,17 @@ export function TimeField({ label, value, onChange }: TimeFieldProps) {
         ) : null}
       </View>
 
-      {showIosPicker && (
-        <DateTimePicker
-          value={pickerValue}
-          mode="time"
-          display="default"
-          // iOS has no 12/24-hour switch; an en-US locale gives the AM/PM wheel.
-          locale="en-US"
-          onValueChange={(_event, selectedDate) => {
-            setShowIosPicker(false);
-            if (selectedDate) onChange(toTimeOnlyString(selectedDate));
-          }}
-        />
+      {showPicker && (
+        <DialogHost>
+          <TimeDialog
+            value={pickerValue}
+            onSelect={(picked) => {
+              setShowPicker(false);
+              onChange(toTimeOnlyString(picked));
+            }}
+            onDismiss={() => setShowPicker(false)}
+          />
+        </DialogHost>
       )}
     </View>
   );

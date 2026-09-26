@@ -1,6 +1,5 @@
 import {
   Column,
-  DatePickerDialog,
   DropdownMenuItem,
   ExposedDropdownMenu,
   ExposedDropdownMenuBox,
@@ -13,12 +12,12 @@ import {
   Spacer,
   Text,
   type TextFieldKeyboardType,
-  TimePickerDialog,
 } from '@expo/ui/jetpack-compose';
 import { fillMaxWidth, menuAnchor, weight, width } from '@expo/ui/jetpack-compose/modifiers';
 import { useState } from 'react';
 
 import { Icons } from './icons';
+import { DateDialog, TimeDialog } from './picker-dialogs';
 import { ControlledTextField } from './text-field';
 import { useAppMaterialColors } from './theme';
 
@@ -38,16 +37,6 @@ type RecordFieldControlProps = {
   onChange: (value: string) => void;
   error?: string | null;
 };
-
-// The Material date picker works in UTC days: it takes and returns the chosen
-// day as UTC midnight, independent of the device timezone.
-function toPickerMillisString(dateOnly: string): string {
-  return `${dateOnly}T00:00:00.000Z`;
-}
-
-function fromPickerDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 /** One field of the Add / Edit Entry form as a Material 3 control, chosen by the field's type. */
 export function RecordFieldControl({ field, value, onChange, error }: RecordFieldControlProps) {
@@ -290,13 +279,13 @@ function DateControl({ value, onChange, fieldLabel }: DateControlProps) {
       ) : null}
 
       {isPickerOpen ? (
-        <DatePickerDialog
-          initialDate={toPickerMillisString(initial)}
-          onDateSelected={(date) => {
+        <DateDialog
+          value={initial}
+          onSelect={(dateOnly) => {
             setIsPickerOpen(false);
-            onChange(fromPickerDate(date));
+            onChange(dateOnly);
           }}
-          onDismissRequest={() => setIsPickerOpen(false)}
+          onDismiss={() => setIsPickerOpen(false)}
         />
       ) : null}
     </Row>
@@ -330,26 +319,25 @@ export function DateTimeControl({ value, onChange, allowFuture = false }: DateTi
       </OutlinedButton>
 
       {openPicker === 'date' ? (
-        <DatePickerDialog
-          initialDate={toPickerMillisString(toDateOnlyString(date))}
-          selectableDates={allowFuture ? undefined : { end: nowInPHT() }}
-          onDateSelected={(picked) => {
+        <DateDialog
+          value={toDateOnlyString(date)}
+          maximumDate={allowFuture ? undefined : nowInPHT()}
+          onSelect={(dateOnly) => {
             setOpenPicker(null);
-            onChange(withDatePart(date, fromPickerDate(picked)).toISOString());
+            onChange(withDatePart(date, dateOnly).toISOString());
           }}
-          onDismissRequest={() => setOpenPicker(null)}
+          onDismiss={() => setOpenPicker(null)}
         />
       ) : null}
       {openPicker === 'time' ? (
         // The time picker works in device-local time and keeps the date part.
-        <TimePickerDialog
-          initialDate={date.toISOString()}
-          is24Hour={false}
-          onDateSelected={(picked) => {
+        <TimeDialog
+          value={date}
+          onSelect={(picked) => {
             setOpenPicker(null);
             onChange(picked.toISOString());
           }}
-          onDismissRequest={() => setOpenPicker(null)}
+          onDismiss={() => setOpenPicker(null)}
         />
       ) : null}
     </Row>

@@ -1,12 +1,12 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { DateDialog, DialogHost, TimeDialog } from './compose/picker-dialogs';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
-import { formatDisplayDate, formatTimeOnly12h } from '@/utils/date';
+import { formatDisplayDate, formatTimeOnly12h, toDateOnlyString, withDatePart } from '@/utils/date';
 
 type DateTimeFieldProps = {
   value: Date;
@@ -16,17 +16,17 @@ type DateTimeFieldProps = {
 
 type PickerMode = 'date' | 'time';
 
-// iOS (Android and web have their own versions of this file): separate date
-// and time triggers that each update the same value.
+// Date and time triggers opening the app's Material 3 date and clock dialogs,
+// the same ones the Compose screens use; each keeps the other part of `value`.
 export function DateTimeField({ value, onChange, maximumDate }: DateTimeFieldProps) {
-  const [iosPickerMode, setIosPickerMode] = useState<PickerMode | null>(null);
-  const openPicker = (mode: PickerMode) => setIosPickerMode(mode);
+  const [pickerMode, setPickerMode] = useState<PickerMode | null>(null);
+  const close = () => setPickerMode(null);
 
   return (
     <View style={styles.row}>
       <ThemedView type="backgroundSelected" style={styles.field}>
         <Pressable
-          onPress={() => openPicker('date')}
+          onPress={() => setPickerMode('date')}
           style={({ pressed }) => pressed && styles.pressed}>
           <ThemedText>{formatDisplayDate(value)}</ThemedText>
         </Pressable>
@@ -34,25 +34,35 @@ export function DateTimeField({ value, onChange, maximumDate }: DateTimeFieldPro
 
       <ThemedView type="backgroundSelected" style={styles.field}>
         <Pressable
-          onPress={() => openPicker('time')}
+          onPress={() => setPickerMode('time')}
           style={({ pressed }) => pressed && styles.pressed}>
           <ThemedText>{formatTimeOnly12h(value)}</ThemedText>
         </Pressable>
       </ThemedView>
 
-      {iosPickerMode && (
-        <DateTimePicker
-          value={value}
-          mode={iosPickerMode}
-          display="default"
-          maximumDate={iosPickerMode === 'date' ? maximumDate : undefined}
-          // iOS has no 12/24-hour switch; an en-US locale gives the AM/PM wheel.
-          locale={iosPickerMode === 'time' ? 'en-US' : undefined}
-          onValueChange={(_event, selectedDate) => {
-            setIosPickerMode(null);
-            if (selectedDate) onChange(selectedDate);
-          }}
-        />
+      {pickerMode && (
+        <DialogHost>
+          {pickerMode === 'date' ? (
+            <DateDialog
+              value={toDateOnlyString(value)}
+              maximumDate={maximumDate}
+              onSelect={(dateOnly) => {
+                close();
+                onChange(withDatePart(value, dateOnly));
+              }}
+              onDismiss={close}
+            />
+          ) : (
+            <TimeDialog
+              value={value}
+              onSelect={(picked) => {
+                close();
+                onChange(picked);
+              }}
+              onDismiss={close}
+            />
+          )}
+        </DialogHost>
       )}
     </View>
   );

@@ -1,12 +1,12 @@
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 
+import { DateDialog, DialogHost } from './compose/picker-dialogs';
 import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
-import { formatDisplayDate } from '@/utils/date';
+import { formatDisplayDate, parseDateOnly, toDateOnlyString } from '@/utils/date';
 
 type DateFieldProps = {
   value: Date;
@@ -14,30 +14,32 @@ type DateFieldProps = {
   maximumDate?: Date;
 };
 
-// iOS (Android and web have their own versions of this file).
+// Opens the app's Material 3 date dialog, the same one the Compose screens use.
 export function DateField({ value, onChange, maximumDate }: DateFieldProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const openPicker = () => setShowPicker(true);
 
   return (
     <>
       <ThemedView type="backgroundSelected" style={styles.field}>
-        <Pressable onPress={openPicker} style={({ pressed }) => pressed && styles.pressed}>
+        <Pressable
+          onPress={() => setShowPicker(true)}
+          style={({ pressed }) => pressed && styles.pressed}>
           <ThemedText>{formatDisplayDate(value)}</ThemedText>
         </Pressable>
       </ThemedView>
 
       {showPicker && (
-        <DateTimePicker
-          value={value}
-          mode="date"
-          display="default"
-          maximumDate={maximumDate}
-          onValueChange={(_event, selectedDate) => {
-            setShowPicker(false);
-            if (selectedDate) onChange(selectedDate);
-          }}
-        />
+        <DialogHost>
+          <DateDialog
+            value={toDateOnlyString(value)}
+            maximumDate={maximumDate}
+            onSelect={(dateOnly) => {
+              setShowPicker(false);
+              onChange(parseDateOnly(dateOnly));
+            }}
+            onDismiss={() => setShowPicker(false)}
+          />
+        </DialogHost>
       )}
     </>
   );
