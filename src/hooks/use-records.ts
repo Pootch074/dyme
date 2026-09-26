@@ -1,4 +1,5 @@
 import type { RecordCategoryId } from '@/constants/record-categories';
+import { markCategoryModified } from '@/hooks/use-category-layout';
 import { createPersistentStore, generateId, readStoredArray } from '@/utils/persistent-store';
 import { deleteSavedImage } from '@/utils/record-image';
 
@@ -87,12 +88,13 @@ function addEntry(category: RecordCategoryId, input: RecordEntryInput) {
     createdAt: new Date().toISOString(),
   };
   store.update((prev) => [...prev, entry]);
+  markCategoryModified(category);
 }
 
 function updateEntry(id: string, input: RecordEntryInput) {
-  const previousImageRef = store.getItems().find((entry) => entry.id === id)?.imageRef;
-  if (previousImageRef && previousImageRef !== input.imageRef) {
-    deleteSavedImage(previousImageRef);
+  const previous = store.getItems().find((entry) => entry.id === id);
+  if (previous?.imageRef && previous.imageRef !== input.imageRef) {
+    deleteSavedImage(previous.imageRef);
   }
 
   store.update((prev) =>
@@ -100,13 +102,15 @@ function updateEntry(id: string, input: RecordEntryInput) {
       entry.id === id ? { ...entry, values: input.values, imageRef: input.imageRef } : entry
     )
   );
+  if (previous) markCategoryModified(previous.category);
 }
 
 function removeEntry(id: string) {
-  const imageRef = store.getItems().find((entry) => entry.id === id)?.imageRef;
-  if (imageRef) deleteSavedImage(imageRef);
+  const removed = store.getItems().find((entry) => entry.id === id);
+  if (removed?.imageRef) deleteSavedImage(removed.imageRef);
 
   store.update((prev) => prev.filter((entry) => entry.id !== id));
+  if (removed) markCategoryModified(removed.category);
 }
 
 /** Every record entry, across all categories, persisted in AsyncStorage (shared by all screens). */

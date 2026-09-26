@@ -1,48 +1,30 @@
-import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  useWindowDimensions,
-  View,
-} from 'react-native';
+import { Link, router } from 'expo-router';
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
-import { Dialog } from '@/components/dialog';
 import { RowActionButton } from '@/components/row-action-button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { RECORD_CATEGORIES } from '@/constants/record-categories';
 import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useCategoryVisibility } from '@/hooks/use-category-visibility';
+import { useCategoryLayout } from '@/hooks/use-category-layout';
 import { useRecords } from '@/hooks/use-records';
 
 const ACCENT = '#3c87f7';
 
 const entryCount = (count: number) => (count === 1 ? '1 entry' : `${count} entries`);
 
+const openManager = () => router.push('/records/manage');
+
 export default function RecordsScreen() {
   const { entries, isLoading } = useRecords();
-  const visibility = useCategoryVisibility();
-  const [isManaging, setIsManaging] = useState(false);
+  const layout = useCategoryLayout(entries);
   const { width } = useWindowDimensions();
   const columns = width >= 700 ? 4 : width >= 480 ? 3 : 2;
 
-  const countByCategory = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const entry of entries) {
-      counts.set(entry.category, (counts.get(entry.category) ?? 0) + 1);
-    }
-    return counts;
-  }, [entries]);
-
-  // Waits for the saved choices so hidden categories don't flash in.
-  const categories = visibility.isLoading ? [] : visibility.visibleCategories;
-  const openManager = () => setIsManaging(true);
+  // Waits for the saved layout so hidden or moved categories don't flash in.
+  const categories = layout.isLoading ? [] : layout.visibleCategories;
 
   return (
     <ThemedView style={styles.container}>
@@ -55,8 +37,8 @@ export default function RecordsScreen() {
             </ThemedText>
             <RowActionButton
               icon="sliders"
-              tooltip="Show / hide categories"
-              accessibilityLabel="Show or hide categories"
+              tooltip="Manage categories"
+              accessibilityLabel="Manage categories"
               onPress={openManager}
             />
           </View>
@@ -66,7 +48,7 @@ export default function RecordsScreen() {
 
           <View style={styles.grid}>
             {categories.map((category) => {
-              const count = countByCategory.get(category.id) ?? 0;
+              const count = layout.counts.get(category.id) ?? 0;
               return (
                 <Link
                   key={category.id}
@@ -94,22 +76,22 @@ export default function RecordsScreen() {
             })}
           </View>
 
-          {!visibility.isLoading && categories.length === 0 ? (
+          {!layout.isLoading && categories.length === 0 ? (
             <View style={styles.empty}>
               <ThemedText themeColor="textSecondary" style={styles.emptyText}>
                 All categories are hidden. Your entries are still saved.
               </ThemedText>
-              <Button label="Show categories" icon="eye" onPress={openManager} />
+              <Button label="Manage categories" icon="sliders" onPress={openManager} />
             </View>
-          ) : visibility.hiddenCount > 0 ? (
+          ) : layout.hiddenCount > 0 ? (
             <Pressable
               onPress={openManager}
               accessibilityRole="button"
               style={({ pressed }) => [styles.hiddenNote, pressed && styles.pressed]}>
               <ThemedText type="small" themeColor="textSecondary">
-                {visibility.hiddenCount === 1
+                {layout.hiddenCount === 1
                   ? '1 hidden category · '
-                  : `${visibility.hiddenCount} hidden categories · `}
+                  : `${layout.hiddenCount} hidden categories · `}
                 <ThemedText type="smallBold" style={styles.link}>
                   Manage
                 </ThemedText>
@@ -118,40 +100,6 @@ export default function RecordsScreen() {
           ) : null}
         </ScrollView>
       </SafeAreaView>
-
-      <Dialog
-        visible={isManaging}
-        title="Show categories"
-        subtitle="Hiding a category keeps its entries."
-        onClose={() => setIsManaging(false)}>
-        {RECORD_CATEGORIES.map((category) => (
-          <ThemedView key={category.id} type="backgroundSelected" style={styles.switchRow}>
-            <ThemedText style={styles.switchEmoji}>{category.emoji}</ThemedText>
-            <View style={styles.switchText}>
-              <ThemedText style={styles.cardLabel} numberOfLines={1}>
-                {category.label}
-              </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">
-                {isLoading ? ' ' : entryCount(countByCategory.get(category.id) ?? 0)}
-              </ThemedText>
-            </View>
-            <Switch
-              value={visibility.isVisible(category.id)}
-              onValueChange={(visible) => visibility.setCategoryVisible(category.id, visible)}
-              trackColor={{ true: ACCENT }}
-              accessibilityLabel={`Show ${category.label}`}
-            />
-          </ThemedView>
-        ))}
-        {visibility.hiddenCount > 0 ? (
-          <Button
-            label="Show all"
-            icon="eye"
-            variant="secondary"
-            onPress={visibility.showAllCategories}
-          />
-        ) : null}
-      </Dialog>
     </ThemedView>
   );
 }
@@ -220,21 +168,6 @@ const styles = StyleSheet.create({
   },
   link: {
     color: ACCENT,
-  },
-  switchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.three,
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.two,
-    paddingHorizontal: Spacing.three,
-  },
-  switchEmoji: {
-    fontSize: 22,
-    lineHeight: 28,
-  },
-  switchText: {
-    flex: 1,
   },
   pressed: {
     opacity: 0.7,

@@ -61,6 +61,7 @@ function ThemedStack() {
         <Stack.Protected guard={isSignedIn}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="records/index" />
+          <Stack.Screen name="records/manage" />
           <Stack.Screen name="records/[category]" />
           <Stack.Screen name="shopping/index" />
           <Stack.Screen name="shopping/[id]" />
