@@ -1,5 +1,5 @@
-import { Column, Host, Icon, IconButton, Surface, Text } from '@expo/ui/jetpack-compose';
-import { fillMaxSize, fillMaxWidth, offset } from '@expo/ui/jetpack-compose/modifiers';
+import { Column, Host, Icon, IconButton, Row, Surface, Text } from '@expo/ui/jetpack-compose';
+import { fillMaxSize, fillMaxWidth, offset, weight } from '@expo/ui/jetpack-compose/modifiers';
 import type { ReactNode } from 'react';
 import { StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -32,10 +32,12 @@ type ScreenHeaderProps = {
   title: string;
   subtitle?: string;
   onBack?: () => void;
+  /** Shown at the end of the title line, e.g. an icon button. */
+  action?: ReactNode;
 };
 
 /** Screen title block, with an optional back arrow above it. */
-export function ScreenHeader({ title, subtitle, onBack }: ScreenHeaderProps) {
+export function ScreenHeader({ title, subtitle, onBack, action }: ScreenHeaderProps) {
   const colors = useAppMaterialColors();
 
   return (
@@ -46,7 +48,16 @@ export function ScreenHeader({ title, subtitle, onBack }: ScreenHeaderProps) {
           <Icon source={Icons.arrowBack} contentDescription="Go back" />
         </IconButton>
       ) : null}
-      <Text style={{ typography: 'headlineMedium' }}>{title}</Text>
+      {action ? (
+        <Row modifiers={[fillMaxWidth()]} verticalAlignment="center">
+          <Text style={{ typography: 'headlineMedium' }} modifiers={[weight(1)]}>
+            {title}
+          </Text>
+          {action}
+        </Row>
+      ) : (
+        <Text style={{ typography: 'headlineMedium' }}>{title}</Text>
+      )}
       {subtitle ? (
         <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
           {subtitle}

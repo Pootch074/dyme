@@ -25,7 +25,7 @@ import { useAppMaterialColors } from './theme';
 import type { RecordField } from '@/constants/record-categories';
 import {
   formatDisplayDate,
-  formatTimeOnly,
+  formatTimeOnly12h,
   nowInPHT,
   parseDateOnly,
   toDateOnlyString,
@@ -326,7 +326,7 @@ export function DateTimeControl({ value, onChange, allowFuture = false }: DateTi
       <OutlinedButton onClick={() => setOpenPicker('time')} modifiers={[weight(1)]}>
         <Icon source={Icons.schedule} size={18} />
         <Spacer modifiers={[width(8)]} />
-        <Text>{formatTimeOnly(date)}</Text>
+        <Text>{formatTimeOnly12h(date)}</Text>
       </OutlinedButton>
 
       {openPicker === 'date' ? (
@@ -344,6 +344,7 @@ export function DateTimeControl({ value, onChange, allowFuture = false }: DateTi
         // The time picker works in device-local time and keeps the date part.
         <TimePickerDialog
           initialDate={date.toISOString()}
+          is24Hour={false}
           onDateSelected={(picked) => {
             setOpenPicker(null);
             onChange(picked.toISOString());

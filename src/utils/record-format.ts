@@ -1,6 +1,6 @@
 import type { RecordCategory, RecordField } from '@/constants/record-categories';
 import type { RecordEntry } from '@/hooks/use-records';
-import { formatDisplayDate, formatRelativeTime, formatTimeOnly, parseDateOnly } from '@/utils/date';
+import { formatDisplayDate, formatRelativeTime, formatTimeOnly12h, parseDateOnly } from '@/utils/date';
 import { formatPeso } from '@/utils/money';
 
 /** The Date a date/datetime field's stored value refers to, or null when empty or not a date field. */
@@ -79,7 +79,7 @@ export function formatFieldValue(field: RecordField, value: string): string {
       return formatDisplayDate(parseDateOnly(value));
     case 'datetime': {
       const date = new Date(value);
-      return `${formatDisplayDate(date)}, ${formatTimeOnly(date)}`;
+      return `${formatDisplayDate(date)}, ${formatTimeOnly12h(date)}`;
     }
     default:
       return value;

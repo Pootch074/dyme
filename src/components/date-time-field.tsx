@@ -6,7 +6,7 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 
 import { Spacing } from '@/constants/theme';
-import { formatDisplayDate, formatTimeOnly } from '@/utils/date';
+import { formatDisplayDate, formatTimeOnly12h } from '@/utils/date';
 
 type DateTimeFieldProps = {
   value: Date;
@@ -26,6 +26,7 @@ export function DateTimeField({ value, onChange, maximumDate }: DateTimeFieldPro
       DateTimePickerAndroid.open({
         value,
         mode,
+        is24Hour: false,
         maximumDate: mode === 'date' ? maximumDate : undefined,
         onValueChange: (_event, selectedDate) => {
           if (selectedDate) onChange(selectedDate);
@@ -50,7 +51,7 @@ export function DateTimeField({ value, onChange, maximumDate }: DateTimeFieldPro
         <Pressable
           onPress={() => openPicker('time')}
           style={({ pressed }) => pressed && styles.pressed}>
-          <ThemedText>{formatTimeOnly(value)}</ThemedText>
+          <ThemedText>{formatTimeOnly12h(value)}</ThemedText>
         </Pressable>
       </ThemedView>
 
@@ -60,6 +61,8 @@ export function DateTimeField({ value, onChange, maximumDate }: DateTimeFieldPro
           mode={iosPickerMode}
           display="default"
           maximumDate={iosPickerMode === 'date' ? maximumDate : undefined}
+          // iOS has no 12/24-hour switch; an en-US locale gives the AM/PM wheel.
+          locale={iosPickerMode === 'time' ? 'en-US' : undefined}
           onValueChange={(_event, selectedDate) => {
             setIosPickerMode(null);
             if (selectedDate) onChange(selectedDate);

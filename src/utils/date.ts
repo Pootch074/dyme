@@ -53,12 +53,7 @@ export function formatDisplayDate(date: Date): string {
   return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-/** Renders the time-of-day as e.g. "3:45 PM". */
-export function formatTimeOnly(date: Date): string {
-  return date.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-}
-
-/** Renders the time-of-day as e.g. "3:45 PM", always 12-hour regardless of locale (for DTR time stamps). */
+/** Renders the time-of-day as e.g. "3:45 PM", always 12-hour regardless of locale (DTR, records and shopping). */
 export function formatTimeOnly12h(date: Date): string {
   const hours = date.getHours();
   const minutes = date.getMinutes();
