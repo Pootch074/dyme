@@ -57,9 +57,14 @@ export default function RecordsScreen() {
           subtitle="Keep track of your important personal records"
           onBack={() => router.back()}
           action={
-            <IconButton onClick={openManager}>
-              <Icon source={Icons.visibility} contentDescription="Manage categories" />
-            </IconButton>
+            <Row>
+              <IconButton onClick={() => router.push('/records/transfer')}>
+                <Icon source={Icons.upload} contentDescription="Import and export records" />
+              </IconButton>
+              <IconButton onClick={openManager}>
+                <Icon source={Icons.visibility} contentDescription="Manage categories" />
+              </IconButton>
+            </Row>
           }
         />
 

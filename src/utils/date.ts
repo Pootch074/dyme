@@ -25,6 +25,11 @@ export function parseDateOnly(dateOnly: string): Date {
   return new Date(year, month - 1, day);
 }
 
+/** "2026-08-15 14:05" in local time: sortable, and readable in a spreadsheet (used by export and import). */
+export function formatSortableDateTime(date: Date): string {
+  return `${toDateOnlyString(date)} ${toTimeOnlyString(date)}`;
+}
+
 /** Formats a Date as a local HH:mm string, for binding to <input type="time">. */
 export function toTimeOnlyString(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');

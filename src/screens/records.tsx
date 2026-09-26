@@ -36,6 +36,12 @@ export default function RecordsScreen() {
               Records
             </ThemedText>
             <RowActionButton
+              icon="upload"
+              tooltip="Import & export"
+              accessibilityLabel="Import and export records"
+              onPress={() => router.push('/records/transfer')}
+            />
+            <RowActionButton
               icon="sliders"
               tooltip="Manage categories"
               accessibilityLabel="Manage categories"

@@ -1,10 +1,10 @@
-import { RECORD_CATEGORIES, type RecordField } from '@/constants/record-categories';
+import { RECORD_CATEGORIES } from '@/constants/record-categories';
 import { loadDtrEntries } from '@/hooks/use-dtr';
 import { loadProfile } from '@/hooks/use-profile';
 import { loadEntries } from '@/hooks/use-records';
 import { loadShoppingRecords } from '@/hooks/use-shopping';
-import { nowInPHT, toDateOnlyString } from '@/utils/date';
-import { maskValue } from '@/utils/record-format';
+import { formatSortableDateTime, nowInPHT, toDateOnlyString } from '@/utils/date';
+import { recordSheet, recordSlug } from '@/utils/records-csv';
 import { itemTotal, recordItemCount, recordTotal } from '@/utils/shopping';
 import { buildCsv, buildXlsx, type Sheet } from '@/utils/spreadsheet';
 
@@ -38,28 +38,8 @@ const pesos = (centavos: number) => centavos / 100;
 /** "2026-08-15 14:05" in the device's time: sortable, and readable in a spreadsheet. */
 function dateTimeCell(iso: string): string {
   const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return iso;
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${toDateOnlyString(date)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return Number.isNaN(date.getTime()) ? iso : formatSortableDateTime(date);
 }
-
-function recordCell(field: RecordField, value: string, options: ExportOptions): string | number {
-  if (!value) return '';
-  if (field.sensitive && !options.includeSensitive) return maskValue(field, value);
-  if (field.type === 'datetime') return dateTimeCell(value);
-  if (field.type === 'amount' || field.type === 'number') {
-    const number = Number(value);
-    return Number.isFinite(number) ? number : value;
-  }
-  return value;
-}
-
-const slugify = (text: string) =>
-  text
-    .toLowerCase()
-    .replace(/&/g, ' ')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 
 /**
  * Everything the app stores, as tables: the profile, DTR, shopping (trips and
@@ -159,27 +139,11 @@ export async function loadExportTables(options: ExportOptions): Promise<ExportTa
     }
   }
 
+  // The same layout as Records → Import & export, so these files import back as is.
   for (const category of RECORD_CATEGORIES) {
-    const entries = records
-      .filter((entry) => entry.category === category.id)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    if (entries.length === 0) continue;
-
-    const fields = category.fields as readonly RecordField[];
-    tables.push({
-      id: `records-${category.id}`,
-      slug: slugify(category.label),
-      name: `Records - ${category.label}`,
-      // Amount columns say they're in pesos, e.g. "Cost (PHP)".
-      columns: [
-        ...fields.map((field) => (field.type === 'amount' ? `${field.label} (PHP)` : field.label)),
-        'Added',
-      ],
-      rows: entries.map((entry) => [
-        ...fields.map((field) => recordCell(field, entry.values[field.key] ?? '', options)),
-        dateTimeCell(entry.createdAt),
-      ]),
-    });
+    const sheet = recordSheet(category, records, options.includeSensitive);
+    if (sheet.rows.length === 0) continue;
+    tables.push({ ...sheet, id: `records-${category.id}`, slug: recordSlug(category) });
   }
 
   return tables;

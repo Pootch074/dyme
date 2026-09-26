@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import type { RecordCategory, RecordCategoryId } from '@/constants/record-categories';
 import { type RecordEntry, useRecords } from '@/hooks/use-records';
 import { formatDateHeading, nowInPHT, toDateOnlyString } from '@/utils/date';
+import { type FieldErrors, validateEntryValues } from '@/utils/record-validation';
 import { resolveImageUri, savePickedImage } from '@/utils/record-image';
 
 export type EntrySection = {
@@ -13,7 +14,6 @@ export type EntrySection = {
 /** Which face the entry dialog is showing; null when it's closed. */
 export type DialogMode = 'add' | 'details' | 'edit' | null;
 
-type FieldErrors = Record<string, string>;
 
 /** Groups entries into same-day sections, newest creation time first. */
 function groupByCreatedDate(entries: RecordEntry[]): EntrySection[] {
@@ -48,44 +48,6 @@ function emptyValues(category: RecordCategory): Record<string, string> {
     else values[field.key] = field.defaultValue ?? '';
   }
   return values;
-}
-
-/** Trims text values and checks each field's rules; returns the cleaned values or per-field errors. */
-function validate(
-  category: RecordCategory,
-  values: Record<string, string>
-): { values: Record<string, string> } | { errors: FieldErrors } {
-  const cleaned: Record<string, string> = {};
-  const errors: FieldErrors = {};
-
-  for (const field of category.fields) {
-    const value = (values[field.key] ?? '').trim();
-    cleaned[field.key] = value;
-
-    if (!value) {
-      if (field.required) errors[field.key] = `${field.label} is required.`;
-      continue;
-    }
-
-    if (field.type === 'number') {
-      const min = field.min ?? 0;
-      const parsed = Number(value);
-      if (!Number.isInteger(parsed) || parsed < min) {
-        errors[field.key] = `${field.label} must be a whole number of at least ${min}.`;
-      }
-    } else if (field.type === 'amount') {
-      const parsed = Number(value.replace(/,/g, ''));
-      if (!Number.isFinite(parsed) || parsed < 0) {
-        errors[field.key] = `${field.label} must be a valid amount.`;
-      } else {
-        cleaned[field.key] = String(parsed);
-      }
-    } else if (field.type === 'datetime' && new Date(value).getTime() > nowInPHT().getTime()) {
-      errors[field.key] = `${field.label} can't be in the future.`;
-    }
-  }
-
-  return Object.keys(errors).length > 0 ? { errors } : { values: cleaned };
 }
 
 /**
@@ -188,7 +150,7 @@ export function useEntryEditor(category: RecordCategory) {
   const submit = async () => {
     if (isSaving) return;
 
-    const result = validate(category, values);
+    const result = validateEntryValues(category, values);
     if ('errors' in result) {
       setFieldErrors(result.errors);
       return;

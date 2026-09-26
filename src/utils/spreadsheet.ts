@@ -159,3 +159,52 @@ export function buildCsv(sheet: Sheet): string {
   const lines = [sheet.columns, ...sheet.rows].map((row) => row.map(field).join(','));
   return `﻿${lines.join('\r\n')}\r\n`;
 }
+
+/**
+ * Reads CSV text into rows of cells: RFC 4180 quoting, any line ending, and a
+ * leading byte-order mark ignored. Semicolon-separated files (as Excel saves
+ * them in some regions) are read too. Blank lines are dropped.
+ */
+export function parseCsv(text: string): string[][] {
+  const input = text.replace(/^﻿/, '');
+  const firstLine = input.slice(0, input.search(/\r|\n|$/));
+  const delimiter = firstLine.split(';').length > firstLine.split(',').length ? ';' : ',';
+
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = '';
+  let quoted = false;
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i];
+    if (quoted) {
+      if (char === '"' && input[i + 1] === '"') {
+        cell += '"';
+        i++;
+      } else if (char === '"') {
+        quoted = false;
+      } else {
+        cell += char;
+      }
+    } else if (char === '"' && cell === '') {
+      quoted = true;
+    } else if (char === delimiter) {
+      row.push(cell);
+      cell = '';
+    } else if (char === '\r' || char === '\n') {
+      if (char === '\r' && input[i + 1] === '\n') i++;
+      row.push(cell);
+      rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+  if (cell !== '' || row.length > 0) {
+    row.push(cell);
+    rows.push(row);
+  }
+
+  return rows.filter((cells) => cells.some((value) => value.trim() !== ''));
+}
