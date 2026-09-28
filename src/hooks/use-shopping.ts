@@ -1,5 +1,5 @@
 import { createPersistentStore, generateId, readStoredArray } from '@/utils/persistent-store';
-import type { ShoppingItem, ShoppingRecord } from '@/utils/shopping';
+import { productKey, type ShoppingItem, type ShoppingRecord } from '@/utils/shopping';
 
 /** Every saved shopping record, brought up to date (also used by Data Export). */
 export async function loadShoppingRecords(): Promise<ShoppingRecord[]> {
@@ -58,6 +58,25 @@ function addItem(recordId: string, input: ShoppingItemInput) {
   }));
 }
 
+/**
+ * Adds several items at once, e.g. from Previously purchased; each is a new
+ * item, so the records they came from stay as they were. A product that's
+ * already on the list isn't added twice: its quantity goes up by one instead,
+ * as its + button would do.
+ */
+function addItemsMerging(recordId: string, inputs: ShoppingItemInput[]) {
+  if (inputs.length === 0) return;
+  updateRecordById(recordId, (record) => {
+    const items = [...record.items];
+    for (const input of inputs) {
+      const index = items.findIndex((item) => productKey(item.name) === productKey(input.name));
+      if (index >= 0) items[index] = { ...items[index], quantity: items[index].quantity + 1 };
+      else items.push({ id: generateId(), ...input, inCart: false });
+    }
+    return { ...record, items };
+  });
+}
+
 function updateItem(recordId: string, itemId: string, input: ShoppingItemInput) {
   updateRecordById(recordId, (record) => ({
     ...record,
@@ -107,6 +126,7 @@ export function useShopping() {
     updateRecord,
     removeRecord,
     addItem,
+    addItemsMerging,
     updateItem,
     setItemInCart,
     moveItem,

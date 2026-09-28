@@ -4,6 +4,7 @@ import {
   Button,
   Column,
   ElevatedCard,
+  FilledTonalButton,
   Icon,
   IconButton,
   RNHostView,
@@ -31,6 +32,7 @@ import { StyleSheet, View } from "react-native";
 
 import { Icons } from "@/components/compose/icons";
 import { ItemEntrySheet } from "@/components/compose/item-entry-sheet";
+import { PreviousProductsSheet } from "@/components/compose/previous-products-sheet";
 import {
   ComposeScreen,
   ScreenHeader,
@@ -42,6 +44,7 @@ import {
   useSuccessColors,
 } from "@/components/compose/theme";
 import { ShoppingItemList } from "@/components/shopping-item-list";
+import { usePreviousProducts } from "@/hooks/use-previous-products";
 import { useShoppingDetails } from "@/hooks/use-shopping-details";
 import { useShoppingRecordForm } from "@/hooks/use-shopping-record-form";
 import { formatCentavos } from "@/utils/money";
@@ -53,12 +56,16 @@ import {
 
 export type ShoppingDetailsScreenProps = {
   recordId: string;
+  /** Just created: offer Previously purchased products straight away. */
+  isNew?: boolean;
 };
 
 export function ShoppingDetailsScreen({
   recordId,
+  isNew = false,
 }: ShoppingDetailsScreenProps) {
   const details = useShoppingDetails(recordId);
+  const previous = usePreviousProducts(recordId, isNew);
   const recordForm = useShoppingRecordForm();
   const colors = useAppMaterialColors();
   const success = useSuccessColors();
@@ -233,15 +240,26 @@ export function ShoppingDetailsScreen({
 
         {/* Fixed bottom: always reachable, whatever the scroll position. */}
         <Surface color={colors.surfaceContainer} modifiers={[fillMaxWidth()]}>
-          <Button onClick={details.openAddItem} modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}>
-            <Icon source={Icons.add} size={18} />
-            <Spacer modifiers={[width(8)]} />
-            <Text>Add an item</Text>
-          </Button>
+          <Row
+            modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}
+            horizontalArrangement={{ spacedBy: 8 }}
+          >
+            <FilledTonalButton onClick={previous.open} modifiers={[weight(1)]}>
+              <Icon source={Icons.schedule} size={18} />
+              <Spacer modifiers={[width(8)]} />
+              <Text>Previous items</Text>
+            </FilledTonalButton>
+            <Button onClick={details.openAddItem} modifiers={[weight(1)]}>
+              <Icon source={Icons.add} size={18} />
+              <Spacer modifiers={[width(8)]} />
+              <Text>Add an item</Text>
+            </Button>
+          </Row>
         </Surface>
       </Column>
 
       {details.itemDialog ? <ItemEntrySheet details={details} /> : null}
+      {previous.isOpen ? <PreviousProductsSheet picker={previous} /> : null}
 
       {details.pendingDeleteItem ? (
         <ConfirmDelete

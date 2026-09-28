@@ -24,6 +24,8 @@ type DialogProps = {
   onClose: () => void;
   /** Whether tapping outside the card closes it (default true). Turn off for forms where a stray tap would lose input. */
   closeOnBackdrop?: boolean;
+  /** Pinned below the scrolling body, e.g. the dialog's main action. */
+  footer?: ReactNode;
   children: ReactNode;
 };
 
@@ -34,6 +36,7 @@ export function Dialog({
   subtitle,
   onClose,
   closeOnBackdrop = true,
+  footer,
   children,
 }: DialogProps) {
   const theme = useTheme();
@@ -74,6 +77,11 @@ export function Dialog({
           <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
             {children}
           </ScrollView>
+          {footer ? (
+            <View style={[styles.footer, { borderTopColor: theme.backgroundSelected }]}>
+              {footer}
+            </View>
+          ) : null}
         </ThemedView>
       </KeyboardAvoidingView>
     </Modal>
@@ -164,6 +172,10 @@ const styles = StyleSheet.create({
     padding: Spacing.three,
     paddingTop: 0,
     gap: Spacing.three,
+  },
+  footer: {
+    padding: Spacing.three,
+    borderTopWidth: StyleSheet.hairlineWidth,
   },
   confirmDialog: {
     width: '100%',

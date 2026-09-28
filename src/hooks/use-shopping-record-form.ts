@@ -26,7 +26,7 @@ function parseBudget(
  * shopping happens (defaults to now, PHT), and an optional budget. Shared by
  * the platform screens.
  */
-export function useShoppingRecordForm(onSaved?: (recordId: string) => void) {
+export function useShoppingRecordForm(onSaved?: (recordId: string, created: boolean) => void) {
   const { addRecord, updateRecord } = useShopping();
 
   const [isOpen, setIsOpen] = useState(false);
@@ -70,11 +70,11 @@ export function useShoppingRecordForm(onSaved?: (recordId: string) => void) {
     if (editingId) {
       updateRecord(editingId, input);
       setIsOpen(false);
-      onSaved?.(editingId);
+      onSaved?.(editingId, false);
     } else {
       const id = addRecord(input);
       setIsOpen(false);
-      onSaved?.(id);
+      onSaved?.(id, true);
     }
   };
 

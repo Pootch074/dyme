@@ -7,12 +7,14 @@ import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
 import { ItemEntryDialog } from '@/components/item-entry-dialog';
+import { PreviousProductsDialog } from '@/components/previous-products-dialog';
 import { RowActionButton } from '@/components/row-action-button';
 import { ShoppingItemList } from '@/components/shopping-item-list';
 import { ShoppingRecordDialog } from '@/components/shopping-record-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing, type ThemeColor } from '@/constants/theme';
+import { usePreviousProducts } from '@/hooks/use-previous-products';
 import { useShoppingDetails } from '@/hooks/use-shopping-details';
 import { useShoppingRecordForm } from '@/hooks/use-shopping-record-form';
 import { useTheme } from '@/hooks/use-theme';
@@ -25,10 +27,13 @@ import {
 
 export type ShoppingDetailsScreenProps = {
   recordId: string;
+  /** Just created: offer Previously purchased products straight away. */
+  isNew?: boolean;
 };
 
-export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) {
+export function ShoppingDetailsScreen({ recordId, isNew = false }: ShoppingDetailsScreenProps) {
   const details = useShoppingDetails(recordId);
+  const previous = usePreviousProducts(recordId, isNew);
   const recordForm = useShoppingRecordForm();
   const theme = useTheme();
   const { record, total, status } = details;
@@ -153,11 +158,20 @@ export function ShoppingDetailsScreen({ recordId }: ShoppingDetailsScreenProps) 
 
         {/* Fixed bottom: always reachable, whatever the scroll position. */}
         <View style={[styles.pinnedBottom, { borderTopColor: theme.backgroundSelected }]}>
-          <Button label="Add an item" icon="plus" onPress={details.openAddItem} />
+          <Button
+            label="Previous items"
+            icon="rotate-ccw"
+            variant="secondary"
+            onPress={previous.open}
+            style={styles.flex}
+          />
+          <Button label="Add an item" icon="plus" onPress={details.openAddItem} style={styles.flex} />
         </View>
       </SafeAreaView>
 
       <ItemEntryDialog details={details} subtitle={record.location} />
+
+      <PreviousProductsDialog picker={previous} subtitle={record.location} />
 
       <ConfirmDialog
         visible={details.pendingDeleteItem !== null}
@@ -249,9 +263,14 @@ const styles = StyleSheet.create({
     gap: Spacing.three,
   },
   pinnedBottom: {
+    flexDirection: 'row',
+    gap: Spacing.two,
     paddingHorizontal: Spacing.four,
     paddingVertical: Spacing.three,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  flex: {
+    flex: 1,
   },
   titleRow: {
     flexDirection: 'row',

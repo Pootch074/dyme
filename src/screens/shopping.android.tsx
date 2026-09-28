@@ -41,8 +41,9 @@ import {
 
 const TRANSPARENT = '#00000000';
 
-function openRecord(id: string) {
-  router.push(`/shopping/${id}` as Href);
+/** A just-created session opens with its Previously purchased picker showing. */
+function openRecord(id: string, created = false) {
+  router.push((created ? `/shopping/${id}?new=1` : `/shopping/${id}`) as Href);
 }
 
 export default function ShoppingScreen() {

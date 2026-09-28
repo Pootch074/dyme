@@ -129,6 +129,79 @@ export function groupByMonth(records: ShoppingRecord[]): ShoppingMonthSection[] 
   return sections;
 }
 
+/** A product from earlier shopping sessions, as last recorded. */
+export type PreviousProduct = {
+  /** Identifies the product across sessions (see productKey). */
+  key: string;
+  name: string;
+  /** Unit price last paid, in centavos. */
+  priceCentavos: number;
+  /** Quantity last bought; at least 1, so re-adding it always counts. */
+  quantity: number;
+  /** Where it was last bought (the session's location). */
+  location: string;
+  /** When it was last bought (the session's date & time). */
+  dateTime: string;
+};
+
+/** Same product whatever the capitalization or stray spaces, e.g. "Tuna " and "tuna". */
+export function productKey(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+}
+
+/**
+ * Every product from the other shopping sessions, one entry per product with
+ * its most recent name, price, quantity and store; most recently bought first.
+ * Only reads the records, so the history itself never changes.
+ */
+export function previousProducts(
+  records: ShoppingRecord[],
+  excludeRecordId?: string
+): PreviousProduct[] {
+  const newestFirst = records
+    .filter((record) => record.id !== excludeRecordId)
+    .sort((a, b) => new Date(b.dateTime).getTime() - new Date(a.dateTime).getTime());
+  const byKey = new Map<string, PreviousProduct>();
+
+  for (const record of newestFirst) {
+    for (const item of record.items) {
+      const key = productKey(item.name);
+      if (!key || byKey.has(key)) continue;
+      byKey.set(key, {
+        key,
+        name: item.name.trim(),
+        priceCentavos: item.priceCentavos,
+        quantity: Math.max(1, item.quantity),
+        location: record.location,
+        dateTime: record.dateTime,
+      });
+    }
+  }
+
+  return [...byKey.values()];
+}
+
+/** Products whose name or store contains every word of the query (case-insensitive). */
+export function filterProducts(products: PreviousProduct[], query: string): PreviousProduct[] {
+  const words = productKey(query).split(' ').filter(Boolean);
+  if (words.length === 0) return products;
+  return products.filter((product) => {
+    const haystack = `${product.key} ${product.location.toLocaleLowerCase()}`;
+    return words.every((word) => haystack.includes(word));
+  });
+}
+
+/** e.g. "₱45.00 × 3 · SM Market · Aug 30, 2026": enough to tell similar products apart. */
+export function previousProductDetails(product: PreviousProduct): string {
+  const date = new Date(product.dateTime);
+  const price =
+    product.quantity > 1
+      ? `${formatCentavos(product.priceCentavos)} × ${product.quantity}`
+      : formatCentavos(product.priceCentavos);
+  const day = `${MONTHS[date.getMonth()].slice(0, 3)} ${date.getDate()}, ${date.getFullYear()}`;
+  return `${price} · ${product.location} · ${day}`;
+}
+
 /** Warning text for a reached / exceeded budget, or null when there's nothing to warn about. */
 export function budgetWarning(status: BudgetStatus): string | null {
   if (status.kind === 'reached') return "You've reached your budget.";
