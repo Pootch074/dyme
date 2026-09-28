@@ -6,6 +6,7 @@ import { centavosToInput, moneyErrorMessage, parseMoneyInput } from '@/utils/mon
 import {
   budgetStatus,
   cartProgress,
+  filterItems,
   itemTotal,
   recordItemCount,
   recordTotal,
@@ -68,6 +69,28 @@ export function useShoppingDetails(recordId: string) {
   // Other dialogs
   const [pendingDeleteItemId, setPendingDeleteItemId] = useState<string | null>(null);
   const [isDeleteRecordOpen, setIsDeleteRecordOpen] = useState(false);
+
+  // Search: narrows the list shown; totals always cover every item. While open
+  // it's either being typed in (the field shows) or, after a tap elsewhere with
+  // something typed, just filtering (a one-line summary shows instead).
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearchEditing, setIsSearchEditing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const allItems = record?.items ?? [];
+  const visibleItems = isSearchOpen ? filterItems(allItems, searchQuery) : allItems;
+  const isFiltering = visibleItems !== allItems;
+
+  /**
+   * Moves an item within the list as shown. While searching, the positions are
+   * in the filtered list, so they're translated to the full list: the item
+   * takes the place of the one it was dropped on, and hidden items keep theirs.
+   */
+  const moveVisibleItem = (fromIndex: number, toIndex: number) => {
+    if (!record) return;
+    const from = allItems.indexOf(visibleItems[fromIndex]);
+    const to = allItems.indexOf(visibleItems[toIndex]);
+    if (from >= 0 && to >= 0) moveItem(record.id, from, to);
+  };
 
   const parsedPrice = parseMoneyInput(price);
   /**
@@ -221,8 +244,38 @@ export function useShoppingDetails(recordId: string) {
     saveItem,
     setItemQuantity,
     setInCart,
-    moveItem: (fromIndex: number, toIndex: number) => {
-      if (record) moveItem(record.id, fromIndex, toIndex);
+    moveItem: moveVisibleItem,
+
+    visibleItems,
+    isFiltering,
+    isSearchOpen,
+    isSearchEditing,
+    /** e.g. `“milk” · 2 of 8 items`, shown while filtering without the field. */
+    searchSummary: `“${searchQuery.trim()}” · ${visibleItems.length} of ${allItems.length} ${
+      allItems.length === 1 ? 'item' : 'items'
+    }`,
+    searchQuery,
+    setSearchQuery,
+    /** Shows the search field (opening search if needed), ready to type. */
+    openSearch: () => {
+      setIsSearchOpen(true);
+      setIsSearchEditing(true);
+    },
+    /**
+     * The field lost focus (a tap outside it): with nothing typed search just
+     * closes; otherwise the results stay, under a summary line.
+     */
+    endSearchEditing: () => {
+      setIsSearchEditing(false);
+      if (!searchQuery.trim()) {
+        setIsSearchOpen(false);
+        setSearchQuery('');
+      }
+    },
+    closeSearch: () => {
+      setIsSearchOpen(false);
+      setIsSearchEditing(false);
+      setSearchQuery('');
     },
 
     pendingDeleteItem,

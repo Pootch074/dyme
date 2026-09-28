@@ -26,6 +26,8 @@ type ControlledTextFieldProps = {
   trailing?: ReactNode;
   /** Shown but not typed into, e.g. as a dropdown's anchor. */
   readOnly?: boolean;
+  /** Focuses the field (bringing up the keyboard) as soon as it appears. */
+  autoFocus?: boolean;
   onFocusChange?: (focused: boolean) => void;
   /** Imperative handle, e.g. to blur the field when another control takes over. */
   fieldRef?: Ref<TextFieldRef>;
@@ -51,6 +53,7 @@ export function ControlledTextField({
   exact = false,
   trailing,
   readOnly = false,
+  autoFocus = false,
   onFocusChange,
   fieldRef,
   modifiers,
@@ -71,6 +74,7 @@ export function ControlledTextField({
     <OutlinedTextField
       ref={fieldRef}
       value={text}
+      autoFocus={autoFocus}
       onFocusChanged={onFocusChange}
       onValueChange={(next) => {
         lastValue.current = next;

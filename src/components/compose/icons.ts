@@ -28,6 +28,7 @@ export const Icons = {
   photoCamera: require('@/assets/icons/photo_camera.xml'),
   remove: require('@/assets/icons/remove.xml'),
   schedule: require('@/assets/icons/schedule.xml'),
+  search: require('@/assets/icons/search.xml'),
   shoppingCart: require('@/assets/icons/shopping_cart.xml'),
   upload: require('@/assets/icons/upload.xml'),
   visibility: require('@/assets/icons/visibility.xml'),

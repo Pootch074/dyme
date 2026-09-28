@@ -1,11 +1,11 @@
-import { Feather } from '@react-native-vector-icons/feather';
+import { Feather, type FeatherIconName } from '@react-native-vector-icons/feather';
 import { router } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/back-button';
-import { Button } from '@/components/button';
 import { ConfirmDialog } from '@/components/dialog';
+import { FormInput } from '@/components/form-input';
 import { ItemEntryDialog } from '@/components/item-entry-dialog';
 import { PreviousProductsDialog } from '@/components/previous-products-dialog';
 import { RowActionButton } from '@/components/row-action-button';
@@ -24,6 +24,16 @@ import {
   cartProgressLabel,
   formatShoppingDateTime,
 } from '@/utils/shopping';
+
+/** The app's blue accent, as on its primary buttons. */
+const ACCENT = '#3c87f7';
+/** Floating buttons: 56 is the standard FAB size, well above the 48 touch minimum. */
+const FAB_SIZE = 56;
+const FAB_ICON_SIZE = 24;
+/** Space between the stacked buttons, and between the stack and the screen edges. */
+const FAB_GAP = Spacing.three;
+/** Height of the whole stack of three buttons. */
+const FAB_STACK_HEIGHT = FAB_SIZE * 3 + FAB_GAP * 2;
 
 export type ShoppingDetailsScreenProps = {
   recordId: string;
@@ -61,8 +71,10 @@ export function ShoppingDetailsScreen({ recordId, isNew = false }: ShoppingDetai
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safeArea}>
-        {/* Fixed top: header, totals and any budget warning stay in view while the items scroll. */}
-        <View style={styles.pinnedTop}>
+        {/* Fixed top: header, totals and any budget warning stay in view while
+            the items scroll. A tap on its background counts as "outside" the
+            search field: on phones that doesn't take focus away by itself. */}
+        <Pressable onPress={Keyboard.dismiss} accessible={false} style={styles.pinnedTop}>
           <BackButton />
           <View style={styles.titleRow}>
             <View style={styles.titleText}>
@@ -151,21 +163,71 @@ export function ShoppingDetailsScreen({ recordId, isNew = false }: ShoppingDetai
               </ThemedText>
             ) : null}
           </View>
-        </View>
 
-        {/* Only the items scroll; press and hold one to drag it to a new position. */}
+          {details.isSearchOpen ? (
+            <View style={styles.searchRow}>
+              <View style={styles.flex}>
+                {details.isSearchEditing ? (
+                  <FormInput
+                    value={details.searchQuery}
+                    onChangeText={details.setSearchQuery}
+                    placeholder="Search items"
+                    autoFocus
+                    autoCorrect={false}
+                    returnKeyType="search"
+                    onBlur={details.endSearchEditing}
+                  />
+                ) : (
+                  // Filtering without the field: tap to change the search.
+                  <Pressable
+                    onPress={details.openSearch}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Search results ${details.searchSummary}, tap to change`}
+                    style={({ pressed }) => [
+                      styles.searchSummary,
+                      { backgroundColor: theme.backgroundElement },
+                      pressed && styles.pressed,
+                    ]}>
+                    <Feather name="search" size={16} color={theme.textSecondary} />
+                    <ThemedText type="small" numberOfLines={1} style={styles.flex}>
+                      {details.searchSummary}
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </View>
+              <RowActionButton
+                icon="x"
+                tooltip="Close search"
+                accessibilityLabel="Close search and show all items"
+                onPress={details.closeSearch}
+              />
+            </View>
+          ) : null}
+        </Pressable>
+
+        {/* Only the items scroll; press and hold one to drag it to a new position.
+            Extra bottom padding lets the last item scroll clear of the buttons. */}
         <ShoppingItemList details={details} contentContainerStyle={styles.itemsList} />
 
-        {/* Fixed bottom: always reachable, whatever the scroll position. */}
-        <View style={[styles.pinnedBottom, { borderTopColor: theme.backgroundSelected }]}>
-          <Button
-            label="Previous items"
+        {/* Floating actions stacked in the bottom-right corner, top to bottom:
+            Search, Previous items, Add an item (the primary action, nearest the thumb). */}
+        <View style={styles.fabs}>
+          {/* Opens the field (or brings it back to change the search); ✕ or a
+              tap elsewhere closes it. */}
+          <Fab
+            icon="search"
+            label="Search items"
+            variant="secondary"
+            onPress={details.openSearch}
+            active={details.isSearchOpen}
+          />
+          <Fab
             icon="rotate-ccw"
+            label="Previously purchased items"
             variant="secondary"
             onPress={previous.open}
-            style={styles.flex}
           />
-          <Button label="Add an item" icon="plus" onPress={details.openAddItem} style={styles.flex} />
+          <Fab icon="plus" label="Add an item" onPress={details.openAddItem} />
         </View>
       </SafeAreaView>
 
@@ -201,6 +263,45 @@ export function ShoppingDetailsScreen({ recordId, isNew = false }: ShoppingDetai
 
       <ShoppingRecordDialog form={recordForm} />
     </ThemedView>
+  );
+}
+
+type FabProps = {
+  icon: FeatherIconName;
+  label: string;
+  onPress: () => void;
+  /** Primary is the app's blue; secondary is a neutral fill, so the main action stands out. */
+  variant?: 'primary' | 'secondary';
+  /** Highlighted, e.g. Search while the search field is showing. */
+  active?: boolean;
+};
+
+/** Round, icon-only floating button; the label is read out by screen readers. */
+function Fab({ icon, label, onPress, variant = 'primary', active = false }: FabProps) {
+  const theme = useTheme();
+  const isPrimary = variant === 'primary';
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ selected: active }}
+      style={({ pressed }) => [
+        styles.fab,
+        isPrimary
+          ? styles.fabPrimary
+          : {
+              backgroundColor: theme.backgroundElement,
+              borderColor: active ? ACCENT : theme.backgroundSelected,
+            },
+        pressed && styles.fabPressed,
+      ]}>
+      <Feather
+        name={icon}
+        size={FAB_ICON_SIZE}
+        color={isPrimary ? '#ffffff' : active ? ACCENT : theme.text}
+      />
+    </Pressable>
   );
 }
 
@@ -259,18 +360,56 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     paddingHorizontal: Spacing.four,
-    paddingBottom: Spacing.three,
+    // Room for the floating button stack below the last item, so scrolling to
+    // the end always brings every item clear of the buttons.
+    paddingBottom: FAB_STACK_HEIGHT + FAB_GAP * 2,
     gap: Spacing.three,
-  },
-  pinnedBottom: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.three,
-    borderTopWidth: StyleSheet.hairlineWidth,
   },
   flex: {
     flex: 1,
+  },
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  searchSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    borderRadius: Spacing.two,
+    paddingVertical: Spacing.two,
+    paddingHorizontal: Spacing.three,
+    // Same height as the field it stands in for, so nothing jumps.
+    minHeight: 42,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  fabs: {
+    position: 'absolute',
+    right: Spacing.four,
+    bottom: FAB_GAP,
+    alignItems: 'center',
+    // Far enough apart that a thumb can't catch two at once.
+    gap: FAB_GAP,
+  },
+  fab: {
+    width: FAB_SIZE,
+    height: FAB_SIZE,
+    borderRadius: FAB_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    elevation: 4,
+    boxShadow: [{ offsetX: 0, offsetY: 2, blurRadius: 4, color: 'rgba(0, 0, 0, 0.25)' }],
+  },
+  fabPrimary: {
+    backgroundColor: ACCENT,
+    borderColor: ACCENT,
+  },
+  fabPressed: {
+    opacity: 0.85,
   },
   titleRow: {
     flexDirection: 'row',

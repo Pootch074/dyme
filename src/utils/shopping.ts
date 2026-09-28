@@ -191,6 +191,16 @@ export function filterProducts(products: PreviousProduct[], query: string): Prev
   });
 }
 
+/** Items whose name contains every word of the query (case-insensitive); all of them for an empty query. */
+export function filterItems(items: ShoppingItem[], query: string): ShoppingItem[] {
+  const words = productKey(query).split(' ').filter(Boolean);
+  if (words.length === 0) return items;
+  return items.filter((item) => {
+    const name = productKey(item.name);
+    return words.every((word) => name.includes(word));
+  });
+}
+
 /** e.g. "₱45.00 × 3 · SM Market · Aug 30, 2026": enough to tell similar products apart. */
 export function previousProductDetails(product: PreviousProduct): string {
   const date = new Date(product.dateTime);

@@ -20,7 +20,11 @@ type FormInputProps = {
   autoCorrect?: boolean;
   autoComplete?: TextInputProps['autoComplete'];
   accessibilityLabel?: string;
+  /** Focuses the field (bringing up the keyboard) as soon as it appears. */
+  autoFocus?: boolean;
   onFocus?: () => void;
+  /** The field lost focus, e.g. a tap elsewhere or the keyboard being closed. */
+  onBlur?: () => void;
   /** Return / Enter key, e.g. to move to the next field or submit. */
   onSubmitEditing?: () => void;
   returnKeyType?: TextInputProps['returnKeyType'];
@@ -42,7 +46,9 @@ export function FormInput({
   autoCorrect,
   autoComplete,
   accessibilityLabel,
+  autoFocus,
   onFocus,
+  onBlur,
   onSubmitEditing,
   returnKeyType,
   trailingInset,
@@ -54,7 +60,9 @@ export function FormInput({
     <TextInput
       ref={ref}
       value={value}
+      autoFocus={autoFocus}
       onFocus={onFocus}
+      onBlur={onBlur}
       onSubmitEditing={onSubmitEditing}
       returnKeyType={returnKeyType}
       // Keeps the keyboard up when Return moves focus to the next field.

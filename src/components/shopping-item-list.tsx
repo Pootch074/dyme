@@ -32,7 +32,7 @@ type ShoppingItemListProps = {
 export function ShoppingItemList({ details, style, contentContainerStyle }: ShoppingItemListProps) {
   return (
     <ReorderableList
-      data={details.record?.items ?? []}
+      data={details.visibleItems}
       keyExtractor={(item) => item.id}
       onReorder={details.moveItem}
       gap={Spacing.three}
@@ -40,7 +40,9 @@ export function ShoppingItemList({ details, style, contentContainerStyle }: Shop
       contentContainerStyle={contentContainerStyle}
       emptyComponent={
         <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-          No items yet. Add what you plan to buy, then mark each one as it goes in your cart.
+          {details.isFiltering
+            ? `No items match “${details.searchQuery.trim()}”.`
+            : 'No items yet. Add what you plan to buy, then mark each one as it goes in your cart.'}
         </ThemedText>
       }
       renderItem={(item, { isActive }) => (
@@ -186,7 +188,7 @@ const styles = StyleSheet.create({
   total: {
     fontWeight: '700',
     // Lines the total's right edge up with the + glyph, not its wider touch area.
-    paddingRight: Spacing.one + Spacing.half,
+    paddingRight: 9,
   },
   menuButton: {
     width: 32,

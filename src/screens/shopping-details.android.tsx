@@ -1,21 +1,24 @@
 import {
   AlertDialog,
   Box,
-  Button,
   Column,
   ElevatedCard,
-  FilledTonalButton,
+  FilledIconButton,
+  FilledTonalIconButton,
   Icon,
   IconButton,
   RNHostView,
   Row,
-  Spacer,
+  Shape,
   Surface,
   Text,
   TextButton,
+  type TextFieldRef,
   VerticalDivider,
 } from "@expo/ui/jetpack-compose";
 import {
+  align,
+  clickable,
   clip,
   fillMaxSize,
   fillMaxWidth,
@@ -24,11 +27,12 @@ import {
   padding,
   paddingAll,
   Shapes,
+  size,
   weight,
-  width,
 } from "@expo/ui/jetpack-compose/modifiers";
 import { router } from "expo-router";
-import { StyleSheet, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Keyboard, StyleSheet, View } from "react-native";
 
 import { Icons } from "@/components/compose/icons";
 import { ItemEntrySheet } from "@/components/compose/item-entry-sheet";
@@ -39,6 +43,7 @@ import {
   SectionLabel,
 } from "@/components/compose/screen";
 import { ShoppingRecordSheet } from "@/components/compose/shopping-record-sheet";
+import { ControlledTextField } from "@/components/compose/text-field";
 import {
   useAppMaterialColors,
   useSuccessColors,
@@ -53,6 +58,13 @@ import {
   cartProgressLabel,
   formatShoppingDateTime,
 } from "@/utils/shopping";
+
+/** Floating buttons: 56 is the standard FAB size, well above the 48 touch minimum. */
+const FAB_SIZE = 56;
+/** Space between the stacked buttons, and between the stack and the screen edges. */
+const FAB_GAP = 16;
+/** Height of the whole stack of three buttons. */
+const FAB_STACK_HEIGHT = FAB_SIZE * 3 + FAB_GAP * 2;
 
 export type ShoppingDetailsScreenProps = {
   recordId: string;
@@ -70,6 +82,34 @@ export function ShoppingDetailsScreen({
   const colors = useAppMaterialColors();
   const success = useSuccessColors();
   const { record, total, status } = details;
+
+  // Tapping outside the search field doesn't take focus from it in Compose,
+  // so each outside area blurs it; losing focus then ends editing.
+  const searchFieldRef = useRef<TextFieldRef>(null);
+  const searchHadFocus = useRef(false);
+  const { isSearchEditing } = details;
+  // Handlers only ask; the effect blurs (refs aren't touched while rendering).
+  const [blurRequests, setBlurRequests] = useState(0);
+  const blurSearch = () => {
+    if (isSearchEditing) setBlurRequests((count) => count + 1);
+  };
+  useEffect(() => {
+    if (blurRequests > 0) void searchFieldRef.current?.blur();
+  }, [blurRequests]);
+
+  // Closing the keyboard (e.g. Back) counts as leaving the field too.
+  useEffect(() => {
+    if (!isSearchEditing) return;
+    const subscription = Keyboard.addListener("keyboardDidHide", () => {
+      void searchFieldRef.current?.blur();
+    });
+    return () => {
+      subscription.remove();
+      // Editing ended (maybe by ✕, with the field gone before reporting its
+      // blur): the next field starts fresh.
+      searchHadFocus.current = false;
+    };
+  }, [isSearchEditing]);
 
   if (!record) {
     return (
@@ -92,9 +132,15 @@ export function ShoppingDetailsScreen({
   return (
     <ComposeScreen>
       <Column modifiers={[fillMaxSize()]}>
-        {/* Fixed top: header, totals and any budget warning stay in view while the items scroll. */}
+        {/* Fixed top: header, totals and any budget warning stay in view while
+            the items scroll. A tap on its background counts as "outside" the
+            search field (buttons inside still get their own taps). */}
         <Column
-          modifiers={[fillMaxWidth(), padding(16, 16, 16, 8)]}
+          modifiers={[
+            fillMaxWidth(),
+            clickable(blurSearch, { indication: false }),
+            padding(16, 16, 16, 8),
+          ]}
           verticalArrangement={{ spacedBy: 12 }}
         >
           <Row modifiers={[fillMaxWidth()]}>
@@ -220,42 +266,158 @@ export function ShoppingDetailsScreen({
               </Text>
             ) : null}
           </Row>
+
+          {details.isSearchOpen && details.isSearchEditing ? (
+            <ControlledTextField
+              fieldRef={searchFieldRef}
+              value={details.searchQuery}
+              onChangeText={details.setSearchQuery}
+              onFocusChange={(focused) => {
+                // Compose also reports "not focused" before the field first
+                // takes focus; only losing focus it had ends editing.
+                if (focused) searchHadFocus.current = true;
+                else if (searchHadFocus.current) {
+                  searchHadFocus.current = false;
+                  details.endSearchEditing();
+                }
+              }}
+              label="Search items"
+              autoFocus
+              exact
+              trailing={
+                <IconButton onClick={details.closeSearch}>
+                  <Icon
+                    source={Icons.close}
+                    contentDescription="Close search and show all items"
+                  />
+                </IconButton>
+              }
+            />
+          ) : null}
+          {details.isSearchOpen && !details.isSearchEditing ? (
+            // Filtering without the field: tap to change the search.
+            <Surface
+              onClick={details.openSearch}
+              color={colors.surfaceContainerHigh}
+              shape={Shape.RoundedCorner({
+                cornerRadii: {
+                  topStart: 12,
+                  topEnd: 12,
+                  bottomStart: 12,
+                  bottomEnd: 12,
+                },
+              })}
+              modifiers={[fillMaxWidth()]}
+            >
+              <Row
+                modifiers={[fillMaxWidth(), padding(16, 4, 4, 4)]}
+                verticalAlignment="center"
+                horizontalArrangement={{ spacedBy: 12 }}
+              >
+                <Icon
+                  source={Icons.search}
+                  size={20}
+                  tint={colors.onSurfaceVariant}
+                />
+                <Text
+                  maxLines={1}
+                  overflow="ellipsis"
+                  style={{ typography: "bodyLarge" }}
+                  modifiers={[weight(1)]}
+                >
+                  {details.searchSummary}
+                </Text>
+                <IconButton onClick={details.closeSearch}>
+                  <Icon
+                    source={Icons.close}
+                    contentDescription="Close search and show all items"
+                  />
+                </IconButton>
+              </Row>
+            </Surface>
+          ) : null}
         </Column>
 
         {/* Only the items scroll. They're React Native views hosted in Compose,
             because dragging an item to reorder needs gestures Compose here
             can't track; press and hold one to move it. The Box takes the space
-            between the header and the Add button: RNHostView always fills its
-            parent and ignores a weight, so on its own it hid the button. */}
+            below the header: RNHostView always fills its parent and ignores a
+            weight. The floating buttons sit over its bottom-right corner; the
+            list's bottom padding lets the last item scroll clear of them. */}
         <Box modifiers={[fillMaxWidth(), weight(1)]}>
           <RNHostView>
-            <View style={styles.fill}>
+            {/* Any touch in the list (a scroll, a +, a row) is outside the
+                search field. Watching in the capture phase and returning false
+                leaves the touch to the list. */}
+            <View
+              style={styles.fill}
+              onStartShouldSetResponderCapture={() => {
+                blurSearch();
+                return false;
+              }}
+            >
               <ShoppingItemList
                 details={details}
                 contentContainerStyle={styles.itemsList}
               />
             </View>
           </RNHostView>
-        </Box>
 
-        {/* Fixed bottom: always reachable, whatever the scroll position. */}
-        <Surface color={colors.surfaceContainer} modifiers={[fillMaxWidth()]}>
-          <Row
-            modifiers={[fillMaxWidth(), padding(16, 12, 16, 12)]}
-            horizontalArrangement={{ spacedBy: 8 }}
+          {/* Stacked top to bottom: Search, Previous items, Add an item (the
+              primary action, nearest the thumb). */}
+          <Column
+            modifiers={[align("bottomEnd"), paddingAll(FAB_GAP)]}
+            verticalArrangement={{ spacedBy: FAB_GAP }}
+            horizontalAlignment="center"
           >
-            <FilledTonalButton onClick={previous.open} modifiers={[weight(1)]}>
-              <Icon source={Icons.schedule} size={18} />
-              <Spacer modifiers={[width(8)]} />
-              <Text>Previous items</Text>
-            </FilledTonalButton>
-            <Button onClick={details.openAddItem} modifiers={[weight(1)]}>
-              <Icon source={Icons.add} size={18} />
-              <Spacer modifiers={[width(8)]} />
-              <Text>Add an item</Text>
-            </Button>
-          </Row>
-        </Surface>
+            {/* Opens the field (or brings it back to change the search);
+                highlighted while searching. ✕ or a tap elsewhere closes it. */}
+            <FilledTonalIconButton
+              onClick={details.openSearch}
+              // Always an object: switching `colors` to undefined makes the
+              // native view throw "Cannot set prop 'colors'".
+              colors={
+                details.isSearchOpen
+                  ? {
+                      containerColor: colors.primaryContainer,
+                      contentColor: colors.onPrimaryContainer,
+                    }
+                  : {
+                      containerColor: colors.secondaryContainer,
+                      contentColor: colors.onSecondaryContainer,
+                    }
+              }
+              modifiers={[size(FAB_SIZE, FAB_SIZE)]}
+            >
+              <Icon source={Icons.search} contentDescription="Search items" />
+            </FilledTonalIconButton>
+            <FilledTonalIconButton
+              onClick={() => {
+                blurSearch();
+                previous.open();
+              }}
+              modifiers={[size(FAB_SIZE, FAB_SIZE)]}
+            >
+              <Icon
+                source={Icons.schedule}
+                contentDescription="Previously purchased items"
+              />
+            </FilledTonalIconButton>
+            <FilledIconButton
+              onClick={() => {
+                blurSearch();
+                details.openAddItem();
+              }}
+              colors={{
+                containerColor: colors.primary,
+                contentColor: colors.onPrimary,
+              }}
+              modifiers={[size(FAB_SIZE, FAB_SIZE)]}
+            >
+              <Icon source={Icons.add} contentDescription="Add an item" />
+            </FilledIconButton>
+          </Column>
+        </Box>
       </Column>
 
       {details.itemDialog ? <ItemEntrySheet details={details} /> : null}
@@ -416,6 +578,8 @@ const styles = StyleSheet.create({
   },
   itemsList: {
     paddingHorizontal: 16,
-    paddingBottom: 16,
+    // Room for the floating button stack below the last item, so scrolling to
+    // the end always brings every item clear of the buttons.
+    paddingBottom: FAB_STACK_HEIGHT + FAB_GAP * 2,
   },
 });
