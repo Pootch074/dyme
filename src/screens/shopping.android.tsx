@@ -5,6 +5,7 @@ import {
   Column,
   ExtendedFloatingActionButton,
   Icon,
+  IconButton,
   LazyColumn,
   ListItem,
   Spacer,
@@ -64,6 +65,11 @@ export default function ShoppingScreen() {
             title="Shopping Calculator"
             subtitle="Record your shopping and keep an eye on your budget."
             onBack={() => router.back()}
+            action={
+              <IconButton onClick={() => router.push('/shopping/transfer')}>
+                <Icon source={Icons.upload} contentDescription="Import and export shopping" />
+              </IconButton>
+            }
           />
 
           {!isLoading && sections.length === 0 ? (

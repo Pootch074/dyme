@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
+import { RowActionButton } from '@/components/row-action-button';
 import { ShoppingRecordDialog } from '@/components/shopping-record-dialog';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -50,7 +51,17 @@ export default function ShoppingScreen() {
           ListHeaderComponent={
             <>
               <BackButton />
-              <ThemedText type="subtitle">Shopping Calculator</ThemedText>
+              <View style={styles.titleRow}>
+                <ThemedText type="subtitle" style={styles.title}>
+                  Shopping Calculator
+                </ThemedText>
+                <RowActionButton
+                  icon="upload"
+                  tooltip="Import & export"
+                  accessibilityLabel="Import and export shopping"
+                  onPress={() => router.push('/shopping/transfer')}
+                />
+              </View>
               <ThemedText type="small" themeColor="textSecondary" style={styles.subtitleText}>
                 Record your shopping and keep an eye on your budget.
               </ThemedText>
@@ -123,6 +134,14 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.four,
     paddingBottom: BottomTabInset + Spacing.six,
     gap: Spacing.two,
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+  },
+  title: {
+    flex: 1,
   },
   subtitleText: {
     marginTop: Spacing.half,

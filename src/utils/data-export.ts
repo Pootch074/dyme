@@ -2,9 +2,9 @@ import { loadDtrEntries } from '@/hooks/use-dtr';
 import { loadProfile } from '@/hooks/use-profile';
 import { loadEntries } from '@/hooks/use-records';
 import { loadShoppingRecords } from '@/hooks/use-shopping';
-import { formatSortableDateTime, nowInPHT, toDateOnlyString } from '@/utils/date';
+import { nowInPHT, toDateOnlyString } from '@/utils/date';
 import { recordsSheet } from '@/utils/records-csv';
-import { itemTotal, recordItemCount, recordTotal } from '@/utils/shopping';
+import { shoppingSheet } from '@/utils/shopping-csv';
 import { buildCsv, buildXlsx, type Sheet } from '@/utils/spreadsheet';
 
 /** One exportable table: a worksheet in Excel, or a file of its own as CSV. */
@@ -32,17 +32,9 @@ export type ExportOptions = {
   includeSensitive: boolean;
 };
 
-const pesos = (centavos: number) => centavos / 100;
-
-/** "2026-08-15 14:05" in the device's time: sortable, and readable in a spreadsheet. */
-function dateTimeCell(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : formatSortableDateTime(date);
-}
-
 /**
- * Everything the app stores, as tables: the profile, DTR, shopping (trips and
- * their items), and Records (every category in one table). Tables
+ * Everything the app stores, as tables: the profile, DTR, shopping (every
+ * session and its items in one table), and Records (every category in one table). Tables
  * with nothing in them are left out. Photos aren't included.
  */
 export async function loadExportTables(options: ExportOptions): Promise<ExportTable[]> {
@@ -82,60 +74,10 @@ export async function loadExportTables(options: ExportOptions): Promise<ExportTa
     });
   }
 
+  // Every session and its items in one table, in the layout Shopping Calculator →
+  // Import & export reads back as is.
   if (shopping.length > 0) {
-    const trips = [...shopping].sort((a, b) => a.dateTime.localeCompare(b.dateTime));
-    tables.push({
-      id: 'shopping',
-      slug: 'shopping',
-      name: 'Shopping',
-      columns: [
-        'Location',
-        'Date and time',
-        'Budget (PHP)',
-        'Total expenses (PHP)',
-        'Total items',
-        'Items in cart',
-      ],
-      rows: trips.map((trip) => [
-        trip.location,
-        dateTimeCell(trip.dateTime),
-        trip.budgetCentavos === null ? '' : pesos(trip.budgetCentavos),
-        pesos(recordTotal(trip)),
-        recordItemCount(trip),
-        `${trip.items.filter((item) => item.inCart).length} of ${trip.items.length}`,
-      ]),
-    });
-
-    const items = trips.flatMap((trip) =>
-      trip.items.map((item, index) => [
-        trip.location,
-        dateTimeCell(trip.dateTime),
-        index + 1,
-        item.name,
-        pesos(item.priceCentavos),
-        item.quantity,
-        pesos(itemTotal(item)),
-        item.inCart ? 'Yes' : 'No',
-      ])
-    );
-    if (items.length > 0) {
-      tables.push({
-        id: 'shopping-items',
-        slug: 'shopping-items',
-        name: 'Shopping items',
-        columns: [
-          'Location',
-          'Date and time',
-          'Position',
-          'Item',
-          'Price (PHP)',
-          'Quantity',
-          'Item total (PHP)',
-          'In cart',
-        ],
-        rows: items,
-      });
-    }
+    tables.push({ ...shoppingSheet(shopping), id: 'shopping', slug: 'shopping' });
   }
 
   // Every category in one table, in the layout Records → Import & export reads back as is.

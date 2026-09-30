@@ -30,6 +30,57 @@ export function formatSortableDateTime(date: Date): string {
   return `${toDateOnlyString(date)} ${toTimeOnlyString(date)}`;
 }
 
+const MONTH_ABBREVIATIONS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+function validDate(year: number, month: number, day: number): Date | null {
+  const date = new Date(year, month - 1, day);
+  return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+    ? date
+    : null;
+}
+
+/** Reads 2026-09-26, 9/26/2026 (month first, as Excel saves it) or Sep 26, 2026. */
+export function parseDateText(text: string): Date | null {
+  let match = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (match) return validDate(Number(match[1]), Number(match[2]), Number(match[3]));
+  match = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (match) return validDate(Number(match[3]), Number(match[1]), Number(match[2]));
+  match = text.match(/^([A-Za-z]{3,})\.? (\d{1,2}),? (\d{4})$/);
+  if (match) {
+    const month = MONTH_ABBREVIATIONS.indexOf(match[1].slice(0, 3).toLowerCase());
+    if (month !== -1) return validDate(Number(match[3]), month + 1, Number(match[2]));
+  }
+  return null;
+}
+
+/**
+ * Reads a date, optionally followed by a 24-hour or AM/PM time, e.g.
+ * "2026-09-26 3:45 PM", in local time (used by CSV import).
+ */
+export function parseDateTimeText(text: string): Date | null {
+  if (/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:?\d{2})$/.test(text)) {
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const time = text.match(/[\sT,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])?\.?m?\.?$/i);
+  const date = parseDateText(time ? text.slice(0, time.index).trim() : text);
+  if (!date) return null;
+  if (!time) return date;
+
+  let hours = Number(time[1]);
+  const minutes = Number(time[2]);
+  const period = time[3]?.toLowerCase();
+  if (minutes > 59) return null;
+  if (period) {
+    if (hours < 1 || hours > 12) return null;
+    hours = (hours % 12) + (period === 'p' ? 12 : 0);
+  } else if (hours > 23) {
+    return null;
+  }
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}
+
 /** Formats a Date as a local HH:mm string, for binding to <input type="time">. */
 export function toTimeOnlyString(date: Date): string {
   const hours = String(date.getHours()).padStart(2, '0');

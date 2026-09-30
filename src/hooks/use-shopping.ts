@@ -1,5 +1,6 @@
 import { createPersistentStore, generateId, readStoredArray } from '@/utils/persistent-store';
 import { productKey, type ShoppingItem, type ShoppingRecord } from '@/utils/shopping';
+import type { ShoppingImportInput } from '@/utils/shopping-csv';
 
 /** Every saved shopping record, brought up to date (also used by Data Export). */
 export async function loadShoppingRecords(): Promise<ShoppingRecord[]> {
@@ -41,6 +42,26 @@ function addRecord(input: ShoppingRecordInput): string {
   };
   store.update((prev) => [...prev, record]);
   return record.id;
+}
+
+/**
+ * Adds imported sessions with their items in one save, each with new ids so
+ * saved sessions are never changed; `createdAt` (ISO) defaults to now.
+ */
+function importRecords(inputs: readonly ShoppingImportInput[]) {
+  if (inputs.length === 0) return;
+  const now = new Date().toISOString();
+  const imported = inputs.map(
+    (input): ShoppingRecord => ({
+      id: generateId(),
+      location: input.location,
+      dateTime: input.dateTime,
+      budgetCentavos: input.budgetCentavos,
+      items: input.items.map((item) => ({ id: generateId(), ...item })),
+      createdAt: input.createdAt ?? now,
+    })
+  );
+  store.update((prev) => [...prev, ...imported]);
 }
 
 function updateRecord(id: string, input: ShoppingRecordInput) {
@@ -123,6 +144,7 @@ export function useShopping() {
     records,
     isLoading,
     addRecord,
+    importRecords,
     updateRecord,
     removeRecord,
     addItem,
