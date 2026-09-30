@@ -23,10 +23,9 @@ import { router } from 'expo-router';
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader, SectionLabel } from '@/components/compose/screen';
 import { useAppMaterialColors, useSuccessColors } from '@/components/compose/theme';
-import { RECORD_CATEGORIES } from '@/constants/record-categories';
 import { rowStatus, useRecordsTransfer } from '@/hooks/use-records-transfer';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import type { ImportPreview } from '@/utils/records-csv';
+import type { ImportPreview, ImportRow } from '@/utils/records-csv';
 
 const TRANSPARENT = '#00000000';
 
@@ -35,9 +34,19 @@ const MAX_PREVIEW_ROWS = 100;
 
 type Transfer = ReturnType<typeof useRecordsTransfer>;
 
-const entryCount = (count: number) => (count === 1 ? '1 entry' : `${count} entries`);
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
 
-/** Records → Import & export: CSV import with a checked preview, and CSV export and templates. */
+/** What names a row's entry, for "(no …)" when it's blank. */
+function titleLabel(row: ImportRow): string {
+  const category = row.category;
+  return category?.fields.find((field) => field.key === category.titleField)?.label ?? 'name';
+}
+
+/**
+ * Records → Import & export: every category in one CSV file, both ways. Import
+ * goes through a checked preview; Export saves all records, or the template.
+ */
 export default function RecordsTransferScreen() {
   const transfer = useRecordsTransfer();
   const colors = useAppMaterialColors();
@@ -51,7 +60,7 @@ export default function RecordsTransferScreen() {
         verticalArrangement={{ spacedBy: 16 }}>
         <ScreenHeader
           title="Import & export"
-          subtitle="Move records in and out as CSV files. Files exported here import back as they are."
+          subtitle="Move all your records, every category, in and out as one CSV file. Files exported here import back as they are."
           onBack={() => router.back()}
         />
 
@@ -66,7 +75,7 @@ export default function RecordsTransferScreen() {
                 verticalArrangement={{ spacedBy: 12 }}>
                 <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
                   {
-                    "Add records from a CSV file: one exported from Dyme, or a filled-in template from below. You'll see a preview before anything is added."
+                    "Add records of any category from a CSV file: one exported from Dyme, or a filled-in template from below. You'll see a preview before anything is added."
                   }
                 </Text>
                 {importState.kind === 'error' || importState.kind === 'done' ? (
@@ -84,16 +93,16 @@ export default function RecordsTransferScreen() {
                   <Spacer modifiers={[width(8)]} />
                   <Text>{importState.kind === 'reading' ? 'Reading…' : 'Choose CSV file'}</Text>
                 </Button>
-                {importState.kind === 'done' ? (
+                {importState.kind === 'done' && importState.category ? (
                   <OutlinedButton
                     onClick={() =>
                       router.push({
                         pathname: '/records/[category]',
-                        params: { category: importState.category.id },
+                        params: { category: importState.category!.id },
                       })
                     }
                     modifiers={[fillMaxWidth()]}>
-                    <Text>{`Open ${importState.category.label}`}</Text>
+                    <Text>{`Open ${importState.category!.label}`}</Text>
                   </OutlinedButton>
                 ) : null}
               </Column>
@@ -102,7 +111,7 @@ export default function RecordsTransferScreen() {
         </Column>
 
         <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
-          <SectionLabel>Export & templates</SectionLabel>
+          <SectionLabel>Export</SectionLabel>
           <Card modifiers={[fillMaxWidth()]}>
             <ListItem colors={{ containerColor: TRANSPARENT }}>
               <ListItem.HeadlineContent>
@@ -124,41 +133,36 @@ export default function RecordsTransferScreen() {
             </ListItem>
           </Card>
 
-          {RECORD_CATEGORIES.map((category) => {
-            const count = transfer.countFor(category);
-            return (
-              <Card key={category.id} modifiers={[fillMaxWidth()]}>
-                <Column
-                  modifiers={[fillMaxWidth(), paddingAll(16)]}
-                  verticalArrangement={{ spacedBy: 8 }}>
-                  <Row modifiers={[fillMaxWidth()]} verticalAlignment="center">
-                    <Text style={{ typography: 'titleMedium' }} modifiers={[weight(1)]}>
-                      {`${category.emoji} ${category.label}`}
-                    </Text>
-                    <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
-                      {transfer.isLoading ? ' ' : entryCount(count)}
-                    </Text>
-                  </Row>
-                  <Row modifiers={[fillMaxWidth()]} horizontalArrangement={{ spacedBy: 8 }}>
-                    <OutlinedButton
-                      onClick={() => transfer.downloadTemplate(category)}
-                      enabled={fileStatus.kind !== 'working'}
-                      modifiers={[weight(1)]}>
-                      <Text>Template</Text>
-                    </OutlinedButton>
-                    <OutlinedButton
-                      onClick={() => transfer.exportCategory(category)}
-                      enabled={fileStatus.kind !== 'working' && count > 0}
-                      modifiers={[weight(1)]}>
-                      <Icon source={Icons.download} size={18} />
-                      <Spacer modifiers={[width(8)]} />
-                      <Text>Export</Text>
-                    </OutlinedButton>
-                  </Row>
-                </Column>
-              </Card>
-            );
-          })}
+          <Card modifiers={[fillMaxWidth()]}>
+            <Column
+              modifiers={[fillMaxWidth(), paddingAll(16)]}
+              verticalArrangement={{ spacedBy: 8 }}>
+              <Text style={{ typography: 'titleMedium' }}>All records</Text>
+              <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
+                {transfer.isLoading
+                  ? ' '
+                  : transfer.entryCount === 0
+                    ? 'No records yet.'
+                    : `${plural(transfer.entryCount, 'record', 'records')} in ${plural(transfer.categoryCount, 'category', 'categories')}. The file has every category, with a Category column saying where each record goes.`}
+              </Text>
+              <Row modifiers={[fillMaxWidth()]} horizontalArrangement={{ spacedBy: 8 }}>
+                <OutlinedButton
+                  onClick={transfer.downloadTemplate}
+                  enabled={fileStatus.kind !== 'working'}
+                  modifiers={[weight(1)]}>
+                  <Text>Template</Text>
+                </OutlinedButton>
+                <Button
+                  onClick={transfer.exportAll}
+                  enabled={fileStatus.kind !== 'working' && transfer.entryCount > 0}
+                  modifiers={[weight(1)]}>
+                  <Icon source={Icons.download} size={18} />
+                  <Spacer modifiers={[width(8)]} />
+                  <Text>Export all</Text>
+                </Button>
+              </Row>
+            </Column>
+          </Card>
 
           {fileStatus.kind === 'done' || fileStatus.kind === 'error' ? (
             <Text
@@ -171,7 +175,7 @@ export default function RecordsTransferScreen() {
             color={colors.onSurfaceVariant}
             style={{ typography: 'bodySmall', textAlign: 'center' }}
             modifiers={[fillMaxWidth()]}>
-            A template has the right column names and one example row to replace.
+            The template has every column and one example row per category to replace or delete.
           </Text>
         </Column>
       </Column>
@@ -186,9 +190,6 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
   const { options, summary } = transfer;
   if (!summary) return null;
 
-  const titleLabel =
-    preview.category.fields.find((field) => field.key === preview.category.titleField)?.label ??
-    'name';
   const toneColor = {
     ok: success.accent,
     warning: colorScheme === 'dark' ? '#FFB86B' : '#9A5B00',
@@ -211,8 +212,15 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
             {preview.fileName}
           </Text>
           <Text color={colors.onSurfaceVariant} style={{ typography: 'bodyMedium' }}>
-            {`${preview.category.emoji} ${preview.category.label} · ${preview.rows.length === 1 ? '1 row' : `${preview.rows.length} rows`}`}
+            {`${plural(preview.rows.length, 'row', 'rows')} · ${plural(preview.categories.length, 'category', 'categories')}`}
           </Text>
+          {preview.categories.length > 0 ? (
+            <Text color={colors.onSurfaceVariant} style={{ typography: 'bodySmall' }}>
+              {preview.categories
+                .map(({ category, rows }) => `${category.emoji} ${category.label} ${rows}`)
+                .join(' · ')}
+            </Text>
+          ) : null}
           <Text style={{ typography: 'bodyMedium' }}>{counts.join(' · ')}</Text>
           {preview.missingColumns.length > 0 ? (
             <Text color={colors.onSurfaceVariant} style={{ typography: 'bodySmall' }}>
@@ -235,7 +243,7 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
             </ListItem.HeadlineContent>
             <ListItem.SupportingContent>
               <Text>
-                {`${summary.fixable === 1 ? '1 row' : `${summary.fixable} rows`}: the invalid values are left blank. Rows missing "${titleLabel}" are always skipped.`}
+                {`${plural(summary.fixable, 'row', 'rows')}: the invalid values are left blank. Rows without a name or a known category are always skipped.`}
               </Text>
             </ListItem.SupportingContent>
             <ListItem.TrailingContent>
@@ -279,14 +287,14 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
                   maxLines={1}
                   overflow="ellipsis"
                   modifiers={[weight(1)]}>
-                  {row.title || `(no ${titleLabel.toLowerCase()})`}
+                  {row.title || `(no ${titleLabel(row).toLowerCase()})`}
                 </Text>
                 <Text color={toneColor[status.tone]} style={{ typography: 'labelLarge' }}>
                   {status.label}
                 </Text>
               </Row>
               <Text color={colors.onSurfaceVariant} style={{ typography: 'bodySmall' }}>
-                {`Row ${row.line}`}
+                {`Row ${row.line}${row.category ? ` · ${row.category.emoji} ${row.category.label}` : ''}`}
               </Text>
               {row.errors.map((message) => (
                 <Text key={message} color={colors.error} style={{ typography: 'bodySmall' }}>

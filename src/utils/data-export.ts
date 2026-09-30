@@ -1,10 +1,9 @@
-import { RECORD_CATEGORIES } from '@/constants/record-categories';
 import { loadDtrEntries } from '@/hooks/use-dtr';
 import { loadProfile } from '@/hooks/use-profile';
 import { loadEntries } from '@/hooks/use-records';
 import { loadShoppingRecords } from '@/hooks/use-shopping';
 import { formatSortableDateTime, nowInPHT, toDateOnlyString } from '@/utils/date';
-import { recordSheet, recordSlug } from '@/utils/records-csv';
+import { recordsSheet } from '@/utils/records-csv';
 import { itemTotal, recordItemCount, recordTotal } from '@/utils/shopping';
 import { buildCsv, buildXlsx, type Sheet } from '@/utils/spreadsheet';
 
@@ -43,7 +42,7 @@ function dateTimeCell(iso: string): string {
 
 /**
  * Everything the app stores, as tables: the profile, DTR, shopping (trips and
- * their items), and one table per Records category that has entries. Tables
+ * their items), and Records (every category in one table). Tables
  * with nothing in them are left out. Photos aren't included.
  */
 export async function loadExportTables(options: ExportOptions): Promise<ExportTable[]> {
@@ -139,11 +138,10 @@ export async function loadExportTables(options: ExportOptions): Promise<ExportTa
     }
   }
 
-  // The same layout as Records → Import & export, so these files import back as is.
-  for (const category of RECORD_CATEGORIES) {
-    const sheet = recordSheet(category, records, options.includeSensitive);
-    if (sheet.rows.length === 0) continue;
-    tables.push({ ...sheet, id: `records-${category.id}`, slug: recordSlug(category) });
+  // Every category in one table, in the layout Records → Import & export reads back as is.
+  const recordsTable = recordsSheet(records, options.includeSensitive);
+  if (recordsTable.rows.length > 0) {
+    tables.push({ ...recordsTable, id: 'records', slug: 'records' });
   }
 
   return tables;

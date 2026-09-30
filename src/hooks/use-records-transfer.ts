@@ -1,16 +1,16 @@
 import { useState } from 'react';
 
-import type { RecordCategory, RecordCategoryId } from '@/constants/record-categories';
+import { getRecordCategory, type RecordCategory } from '@/constants/record-categories';
 import { useRecords } from '@/hooks/use-records';
 import { pickFile } from '@/utils/pick-file';
 import {
   buildRecordsCsvFile,
-  buildRecordTemplateFile,
+  buildRecordsTemplateFile,
+  importInputs,
   type ImportOptions,
   type ImportPreview,
   prepareRecordImport,
   summarizeImport,
-  willImport,
 } from '@/utils/records-csv';
 import { saveFile } from '@/utils/save-file';
 
@@ -22,7 +22,8 @@ export type ImportState =
   | { kind: 'reading' }
   | { kind: 'error'; message: string }
   | { kind: 'preview'; preview: ImportPreview }
-  | { kind: 'done'; message: string; category: RecordCategory };
+  /** `category` is set when every imported record went into that one category. */
+  | { kind: 'done'; message: string; category: RecordCategory | null };
 
 export type FileStatus =
   | { kind: 'idle' }
@@ -37,8 +38,8 @@ const plural = (count: number, one: string, many: string) =>
 
 /**
  * State for Records → Import & export (shared by the iOS/web and Android
- * screens): importing a CSV through a checked preview, and saving a
- * category's entries or its import template as CSV.
+ * screens): importing a CSV of any categories through a checked preview, and
+ * saving every category's entries, or the import template, as one CSV.
  */
 export function useRecordsTransfer() {
   const { entries, isLoading, importEntries } = useRecords();
@@ -77,19 +78,20 @@ export function useRecordsTransfer() {
   const confirmImport = () => {
     if (importState.kind !== 'preview') return;
     const { preview } = importState;
-    const rows = preview.rows.filter((row) => willImport(row, options));
-    importEntries(
-      preview.category.id as RecordCategoryId,
-      rows.map((row) => ({ values: row.values, createdAt: row.createdAt }))
-    );
+    const inputs = importInputs(preview, options);
+    importEntries(inputs);
+    const categoryIds = [...new Set(inputs.map((input) => input.category))];
+    const only = categoryIds.length === 1 ? (getRecordCategory(categoryIds[0]) ?? null) : null;
     setImportState({
       kind: 'done',
-      category: preview.category,
-      message: `Imported ${plural(rows.length, 'record', 'records')} into ${preview.category.label}.`,
+      category: only,
+      message: `Imported ${plural(inputs.length, 'record', 'records')} into ${
+        only ? only.label : plural(categoryIds.length, 'category', 'categories')
+      }.`,
     });
   };
 
-  const save = async (build: () => ReturnType<typeof buildRecordTemplateFile>) => {
+  const save = async (build: () => ReturnType<typeof buildRecordsTemplateFile>) => {
     if (fileStatus.kind === 'working') return;
     setFileStatus({ kind: 'working' });
     try {
@@ -109,8 +111,7 @@ export function useRecordsTransfer() {
     }
   };
 
-  const countFor = (category: RecordCategory) =>
-    entries.filter((entry) => entry.category === category.id).length;
+  const categoryCount = new Set(entries.map((entry) => entry.category)).size;
 
   return {
     isLoading,
@@ -125,10 +126,12 @@ export function useRecordsTransfer() {
     includeSensitive,
     setIncludeSensitive,
     fileStatus,
-    countFor,
-    exportCategory: (category: RecordCategory) =>
-      save(() => buildRecordsCsvFile(category, entries, includeSensitive)),
-    downloadTemplate: (category: RecordCategory) => save(() => buildRecordTemplateFile(category)),
+    /** Records saved, across every category. */
+    entryCount: entries.length,
+    /** Categories that have at least one record. */
+    categoryCount,
+    exportAll: () => save(() => buildRecordsCsvFile(entries, includeSensitive)),
+    downloadTemplate: () => save(buildRecordsTemplateFile),
   };
 }
 

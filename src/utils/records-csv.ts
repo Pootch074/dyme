@@ -1,6 +1,8 @@
 import {
+  getRecordCategory,
   RECORD_CATEGORIES,
   type RecordCategory,
+  type RecordCategoryId,
   type RecordField,
 } from '@/constants/record-categories';
 import type { RecordEntry } from '@/hooks/use-records';
@@ -10,13 +12,21 @@ import { maskValue } from '@/utils/record-format';
 import { validateEntryValues } from '@/utils/record-validation';
 import { buildCsv, parseCsv, type Sheet } from '@/utils/spreadsheet';
 
+/** Every category, typed loosely so any of them fits a `RecordCategory`. */
+const CATEGORIES: readonly RecordCategory[] = RECORD_CATEGORIES;
+
 /*
  * The Records CSV layout, shared by export, the import template and import so
- * an exported file can be imported back as is: one file per category, a
- * header row of the category's field labels (amounts as "Cost (PHP)") plus
- * "Added", then one row per entry. Dates are YYYY-MM-DD and date-times
- * "YYYY-MM-DD HH:mm" (device time).
+ * an exported file can be imported back as is: one file for every category.
+ * A "Category" column names each entry's category, then one column per field
+ * label across all categories (amounts as "Cost (PHP)"; a label shared by
+ * several categories, like "Notes", is one column), then "Added". Each row
+ * fills in only its own category's columns. Dates are YYYY-MM-DD and
+ * date-times "YYYY-MM-DD HH:mm" (device time).
  */
+
+/** Column naming each entry's category (by label; its id is accepted too). */
+export const CATEGORY_COLUMN = 'Category';
 
 /** Column for when the entry was added; blank on import means "now". */
 export const ADDED_COLUMN = 'Added';
@@ -26,8 +36,28 @@ export function recordColumn(field: RecordField): string {
   return field.type === 'amount' ? `${field.label} (PHP)` : field.label;
 }
 
-export function recordColumns(category: RecordCategory): string[] {
-  return [...category.fields.map(recordColumn), ADDED_COLUMN];
+/** A header or label compared loosely: case, spacing and a "(PHP)" suffix don't matter. */
+function normalizeHeader(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/\(php\)$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Every column of the file: "Category", each distinct field column in category order, "Added". */
+export function recordsColumns(): string[] {
+  const seen = new Set<string>();
+  const columns = [CATEGORY_COLUMN];
+  for (const category of CATEGORIES) {
+    for (const field of category.fields) {
+      const column = recordColumn(field);
+      if (seen.has(normalizeHeader(column))) continue;
+      seen.add(normalizeHeader(column));
+      columns.push(column);
+    }
+  }
+  return [...columns, ADDED_COLUMN];
 }
 
 /** Short name for file names, e.g. "bank-finance". */
@@ -55,25 +85,48 @@ function recordCell(field: RecordField, value: string, includeSensitive: boolean
   return value;
 }
 
+/** Rows in the file's layout, each with its category, its field values and when it was added. */
+function recordRows(
+  rows: readonly { category: RecordCategory; cells: (field: RecordField) => string | number; added: string }[]
+): Sheet {
+  const columns = recordsColumns();
+  const indexOf = new Map(columns.map((column, index) => [normalizeHeader(column), index]));
+  return {
+    name: 'Records',
+    columns,
+    rows: rows.map(({ category, cells, added }) => {
+      const row: (string | number)[] = columns.map(() => '');
+      row[0] = category.label;
+      for (const field of category.fields) {
+        row[indexOf.get(normalizeHeader(recordColumn(field)))!] = cells(field);
+      }
+      row[columns.length - 1] = added;
+      return row;
+    }),
+  };
+}
+
 /**
- * A category's entries as a table, oldest first. Passwords and card/account
+ * Every entry, of every category, as one table: grouped by category (in the
+ * app's category order), oldest first within each. Passwords and card/account
  * numbers are masked (•••• 7890) unless `includeSensitive` is on.
  */
-export function recordSheet(
-  category: RecordCategory,
-  entries: readonly RecordEntry[],
-  includeSensitive: boolean
-): Sheet {
-  const rows = entries
-    .filter((entry) => entry.category === category.id)
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .map((entry) => [
-      ...category.fields.map((field) =>
-        recordCell(field, entry.values[field.key] ?? '', includeSensitive)
-      ),
-      dateTimeCell(entry.createdAt),
-    ]);
-  return { name: `Records - ${category.label}`, columns: recordColumns(category), rows };
+export function recordsSheet(entries: readonly RecordEntry[], includeSensitive: boolean): Sheet {
+  const position = new Map<string, number>(CATEGORIES.map((category, index) => [category.id, index]));
+  return recordRows(
+    entries
+      .filter((entry) => position.has(entry.category))
+      .sort(
+        (a, b) =>
+          position.get(a.category)! - position.get(b.category)! ||
+          a.createdAt.localeCompare(b.createdAt)
+      )
+      .map((entry) => ({
+        category: getRecordCategory(entry.category)!,
+        cells: (field) => recordCell(field, entry.values[field.key] ?? '', includeSensitive),
+        added: dateTimeCell(entry.createdAt),
+      }))
+  );
 }
 
 function csvFile(fileName: string, sheet: Sheet): ExportFile {
@@ -85,17 +138,13 @@ function csvFile(fileName: string, sheet: Sheet): ExportFile {
   };
 }
 
-/** A category's entries as a CSV file that Import reads back. */
+/** Every entry, of every category, as one CSV file that Import reads back. */
 export function buildRecordsCsvFile(
-  category: RecordCategory,
   entries: readonly RecordEntry[],
   includeSensitive: boolean
 ): ExportFile {
   const date = toDateOnlyString(nowInPHT());
-  return csvFile(
-    `dyme-${recordSlug(category)}-${date}.csv`,
-    recordSheet(category, entries, includeSensitive)
-  );
+  return csvFile(`dyme-records-${date}.csv`, recordsSheet(entries, includeSensitive));
 }
 
 /** An example value for the template row, by field type. */
@@ -128,13 +177,18 @@ function exampleValue(category: RecordCategory, field: RecordField): string {
   }
 }
 
-/** The import template: the category's column headers and one example row to replace. */
-export function buildRecordTemplateFile(category: RecordCategory): ExportFile {
-  return csvFile(`dyme-${recordSlug(category)}-template.csv`, {
-    name: category.label,
-    columns: recordColumns(category),
-    rows: [[...category.fields.map((field) => exampleValue(category, field)), '']],
-  });
+/** The import template: every column, and one example row per category to replace or delete. */
+export function buildRecordsTemplateFile(): ExportFile {
+  return csvFile(
+    'dyme-records-template.csv',
+    recordRows(
+      CATEGORIES.map((category) => ({
+        category,
+        cells: (field) => exampleValue(category, field),
+        added: '',
+      }))
+    )
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +198,8 @@ export function buildRecordTemplateFile(category: RecordCategory): ExportFile {
 export type ImportRow = {
   /** Line in the file (the header is line 1). */
   line: number;
+  /** The row's category, or null when it names none (the row is skipped). */
+  category: RecordCategory | null;
   title: string;
   /** Stored-format values; any field with an error is left blank here. */
   values: Record<string, string>;
@@ -158,9 +214,10 @@ export type ImportRow = {
 
 export type ImportPreview = {
   fileName: string;
-  category: RecordCategory;
   rows: ImportRow[];
-  /** Headers that aren't a column of the category. */
+  /** The categories rows are for, in the app's order, with how many rows each. */
+  categories: { category: RecordCategory; rows: number }[];
+  /** Headers that aren't a column of any category. */
   ignoredColumns: string[];
   /** Optional columns the file doesn't have; those values are left blank. */
   missingColumns: string[];
@@ -182,15 +239,6 @@ export type ImportSummary = {
 };
 
 const CSV_MIME_TYPES = ['text/csv', 'text/comma-separated-values', 'application/csv'];
-
-/** A header or label compared loosely: case, spacing and a "(PHP)" suffix don't matter. */
-function normalizeHeader(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/\(php\)$/, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
 
 const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
 
@@ -304,17 +352,35 @@ function duplicateKey(fields: readonly RecordField[], values: Record<string, str
     .join('\u0001');
 }
 
-/** Which category a file is for: its exported file name first, then the best-matching headers. */
-function detectCategory(fileName: string, headers: string[]): RecordCategory | null {
+/** The category a "Category" cell names: its label, id or file-name slug, loosely. */
+function findCategory(text: string): RecordCategory | null {
+  const wanted = normalizeHeader(text);
+  if (!wanted) return null;
+  return (
+    CATEGORIES.find(
+      (category) =>
+        normalizeHeader(category.label) === wanted ||
+        category.id === wanted ||
+        recordSlug(category) === wanted
+    ) ?? null
+  );
+}
+
+/**
+ * Which category a file without a "Category" column is for (one saved by an
+ * older version, one category per file): its exported file name first, then
+ * the best-matching headers.
+ */
+function detectSingleCategory(fileName: string, headers: string[]): RecordCategory | null {
   const name = fileName.toLowerCase();
-  const named = [...RECORD_CATEGORIES]
+  const named = [...CATEGORIES]
     .sort((a, b) => recordSlug(b).length - recordSlug(a).length)
     .find((category) => name.includes(`dyme-${recordSlug(category)}-`));
   if (named) return named;
 
   const normalized = new Set(headers.map(normalizeHeader));
   let best: { category: RecordCategory; score: number } | null = null;
-  for (const category of RECORD_CATEGORIES) {
+  for (const category of CATEGORIES) {
     const labels = category.fields.map((field) => normalizeHeader(field.label));
     const matched = labels.filter((label) => normalized.has(label)).length;
     if (matched === 0) continue;
@@ -326,9 +392,28 @@ function detectCategory(fileName: string, headers: string[]): RecordCategory | n
 }
 
 /**
- * Reads and checks an import file. Returns a problem with the file as a whole
- * (not a CSV, no header, required column missing, …), or a preview of every
- * row with its errors and duplicates, for the user to confirm.
+ * Where each of a category's fields is in the file: the column with its label
+ * or, failing that, its key. Fields without a column are left out.
+ */
+function fieldColumns(category: RecordCategory, normalizedHeaders: string[]): Map<string, number> {
+  const columns = new Map<string, number>();
+  for (const field of category.fields) {
+    let index = normalizedHeaders.indexOf(normalizeHeader(field.label));
+    if (index === -1) index = normalizedHeaders.indexOf(field.key.toLowerCase());
+    if (index !== -1) columns.set(field.key, index);
+  }
+  return columns;
+}
+
+function titleFieldOf(category: RecordCategory): RecordField {
+  return category.fields.find((field) => field.key === category.titleField)!;
+}
+
+/**
+ * Reads and checks an import file holding records of any categories. Returns
+ * a problem with the file as a whole (not a CSV, no header, required column
+ * missing, …), or a preview of every row with its errors and duplicates, for
+ * the user to confirm.
  */
 export function prepareRecordImport(
   file: { name: string; mimeType?: string | null; text: string },
@@ -347,50 +432,97 @@ export function prepareRecordImport(
   if (!headerRow) return { error: 'The file is empty.' };
 
   const headers = headerRow.map((header) => header.trim());
-  const category = detectCategory(file.name, headers);
-  if (!category) {
-    return {
-      error:
-        "The columns don't match any Records category. The first row must hold the column names, as in the import template.",
-    };
-  }
+  const normalized = headers.map(normalizeHeader);
+  const categoryColumn = normalized.indexOf(normalizeHeader(CATEGORY_COLUMN));
+  const addedColumn = normalized.indexOf(normalizeHeader(ADDED_COLUMN));
 
-  // Where each field's (and "Added") values are, by header; later repeats are ignored.
-  const columnOf = new Map<string, number>();
-  const ignoredColumns: string[] = [];
-  headers.forEach((header, index) => {
-    const normalized = normalizeHeader(header);
-    const field = category.fields.find(
-      (candidate) =>
-        normalizeHeader(candidate.label) === normalized || candidate.key.toLowerCase() === normalized
-    );
-    const key = field ? field.key : normalized === normalizeHeader(ADDED_COLUMN) ? ADDED_COLUMN : null;
-    if (key && !columnOf.has(key)) columnOf.set(key, index);
-    else if (header) ignoredColumns.push(header);
-  });
-
-  const titleField = category.fields.find((field) => field.key === category.titleField)!;
-  if (!columnOf.has(titleField.key)) {
+  // Without a "Category" column, every row is for the one category the file is for.
+  const singleCategory = categoryColumn === -1 ? detectSingleCategory(file.name, headers) : null;
+  if (categoryColumn === -1 && !singleCategory) {
     return {
-      error: `Missing required column "${titleField.label}" for ${category.label}. Add it, or start from the import template.`,
+      error: `The file needs a "${CATEGORY_COLUMN}" column naming each record's category. The first row must hold the column names, as in the import template.`,
     };
   }
   if (dataRows.length === 0) {
     return { error: 'The file has column names but no records under them.' };
   }
 
-  const missingColumns = category.fields
-    .filter((field) => !columnOf.has(field.key))
-    .map((field) => field.label);
+  const rowCategories = dataRows.map(
+    (cells) => singleCategory ?? findCategory(cells[categoryColumn] ?? '')
+  );
+  const present = CATEGORIES.filter((category) => rowCategories.includes(category));
 
-  const compared = category.fields.filter((field) => columnOf.has(field.key) && !field.sensitive);
+  const columnsOf = new Map<string, Map<string, number>>(
+    CATEGORIES.map((category) => [category.id, fieldColumns(category, normalized)])
+  );
+
+  for (const category of present) {
+    const titleField = titleFieldOf(category);
+    if (!columnsOf.get(category.id)!.has(titleField.key)) {
+      return {
+        error: `Missing required column "${titleField.label}" for ${category.label}. Add it, or start from the import template.`,
+      };
+    }
+  }
+
+  // A column no category reads (nor "Category" or "Added") is ignored.
+  const used = new Set<number>([categoryColumn, addedColumn]);
+  for (const columns of columnsOf.values()) {
+    for (const index of columns.values()) used.add(index);
+  }
+  const ignoredColumns = headers.filter((header, index) => header && !used.has(index));
+
+  const missingColumns = [
+    ...new Set(
+      present.flatMap((category) =>
+        category.fields
+          .filter((field) => !columnsOf.get(category.id)!.has(field.key))
+          .map(recordColumn)
+      )
+    ),
+  ];
+
+  // Per category, the columns compared for duplicates: in the file, and not sensitive
+  // (a default export masks those).
+  const comparedOf = new Map<string, RecordField[]>(
+    CATEGORIES.map((category) => [
+      category.id,
+      category.fields.filter(
+        (field) => columnsOf.get(category.id)!.has(field.key) && !field.sensitive
+      ),
+    ])
+  );
+  const keyOf = (category: RecordCategory, values: Record<string, string>) =>
+    `${category.id}\u0002${duplicateKey(comparedOf.get(category.id)!, values)}`;
   const seen = new Map<string, 'existing' | number>();
   for (const entry of existing) {
-    if (entry.category === category.id) seen.set(duplicateKey(compared, entry.values), 'existing');
+    const category = getRecordCategory(entry.category);
+    if (category && present.includes(category)) seen.set(keyOf(category, entry.values), 'existing');
   }
 
   const rows = dataRows.map((cells, index): ImportRow => {
     const line = index + 2;
+    const category = rowCategories[index];
+    if (!category) {
+      const named = (cells[categoryColumn] ?? '').trim();
+      return {
+        line,
+        category: null,
+        title: named,
+        values: {},
+        createdAt: null,
+        errors: [
+          named
+            ? `"${named}" isn't a Records category.`
+            : `${CATEGORY_COLUMN} is blank. Name one of the Records categories.`,
+        ],
+        fixable: false,
+        duplicateOf: null,
+      };
+    }
+
+    const columnOf = columnsOf.get(category.id)!;
+    const titleField = titleFieldOf(category);
     const values: Record<string, string> = {};
     const errors: string[] = [];
     let fixable = true;
@@ -418,8 +550,7 @@ export function prepareRecordImport(
       Object.assign(values, checked.values);
     }
 
-    const addedColumn = columnOf.get(ADDED_COLUMN);
-    const addedText = addedColumn === undefined ? '' : (cells[addedColumn] ?? '').trim();
+    const addedText = addedColumn === -1 ? '' : (cells[addedColumn] ?? '').trim();
     let createdAt: string | null = null;
     if (addedText) {
       const added = parseDateTimeText(addedText);
@@ -427,12 +558,13 @@ export function prepareRecordImport(
       else errors.push(`${ADDED_COLUMN} must be a date and time, like ${formatSortableDateTime(nowInPHT())}.`);
     }
 
-    const key = duplicateKey(compared, values);
+    const key = keyOf(category, values);
     const duplicateOf = values[titleField.key] ? (seen.get(key) ?? null) : null;
     if (duplicateOf === null && values[titleField.key]) seen.set(key, line);
 
     return {
       line,
+      category,
       title: values[titleField.key] || (cells[columnOf.get(titleField.key)!] ?? '').trim(),
       values,
       createdAt,
@@ -442,7 +574,26 @@ export function prepareRecordImport(
     };
   });
 
-  return { preview: { fileName: file.name, category, rows, ignoredColumns, missingColumns } };
+  const categories = present.map((category) => ({
+    category,
+    rows: rows.filter((row) => row.category === category).length,
+  }));
+
+  return { preview: { fileName: file.name, rows, categories, ignoredColumns, missingColumns } };
+}
+
+/** The entries to add: the rows that get imported with these options. */
+export function importInputs(
+  preview: ImportPreview,
+  options: ImportOptions
+): { category: RecordCategoryId; values: Record<string, string>; createdAt: string | null }[] {
+  return preview.rows
+    .filter((row) => row.category && willImport(row, options))
+    .map((row) => ({
+      category: row.category!.id as RecordCategoryId,
+      values: row.values,
+      createdAt: row.createdAt,
+    }));
 }
 
 /** Whether a row gets imported with these options. */

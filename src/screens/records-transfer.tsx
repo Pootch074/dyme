@@ -7,11 +7,10 @@ import { BackButton } from '@/components/back-button';
 import { Button } from '@/components/button';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { RECORD_CATEGORIES } from '@/constants/record-categories';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { rowStatus, useRecordsTransfer } from '@/hooks/use-records-transfer';
 import { useTheme } from '@/hooks/use-theme';
-import type { ImportPreview } from '@/utils/records-csv';
+import type { ImportPreview, ImportRow } from '@/utils/records-csv';
 
 const ACCENT = '#3c87f7';
 const WARNING = '#C77700';
@@ -21,7 +20,10 @@ const MAX_PREVIEW_ROWS = 100;
 
 type Transfer = ReturnType<typeof useRecordsTransfer>;
 
-/** Records → Import & export: CSV import with a checked preview, and CSV export and templates. */
+/**
+ * Records → Import & export: every category in one CSV file, both ways. Import
+ * goes through a checked preview; Export saves all records, or the template.
+ */
 export default function RecordsTransferScreen() {
   const transfer = useRecordsTransfer();
   const { importState, fileStatus } = transfer;
@@ -33,7 +35,8 @@ export default function RecordsTransferScreen() {
           <BackButton />
           <ThemedText type="subtitle">Import & export</ThemedText>
           <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
-            Move records in and out as CSV files. Files exported here import back as they are.
+            Move all your records, every category, in and out as one CSV file. Files exported
+            here import back as they are.
           </ThemedText>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
@@ -45,7 +48,7 @@ export default function RecordsTransferScreen() {
             <ThemedView type="backgroundElement" style={styles.card}>
               <ThemedText type="small" themeColor="textSecondary">
                 {
-                  "Add records from a CSV file: one exported from Dyme, or a filled-in template from below. You'll see a preview before anything is added."
+                  "Add records of any category from a CSV file: one exported from Dyme, or a filled-in template from below. You'll see a preview before anything is added."
                 }
               </ThemedText>
               {importState.kind === 'error' ? (
@@ -61,14 +64,14 @@ export default function RecordsTransferScreen() {
                   disabled={importState.kind === 'reading' || transfer.isLoading}
                   style={styles.flex}
                 />
-                {importState.kind === 'done' ? (
+                {importState.kind === 'done' && importState.category ? (
                   <Button
                     label={`Open ${importState.category.label}`}
                     variant="secondary"
                     onPress={() =>
                       router.push({
                         pathname: '/records/[category]',
-                        params: { category: importState.category.id },
+                        params: { category: importState.category!.id },
                       })
                     }
                     style={styles.flex}
@@ -79,7 +82,7 @@ export default function RecordsTransferScreen() {
           )}
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
-            Export & templates
+            Export
           </ThemedText>
           <ThemedView type="backgroundElement" style={styles.switchRow}>
             <View style={styles.flex}>
@@ -100,37 +103,33 @@ export default function RecordsTransferScreen() {
             />
           </ThemedView>
 
-          <View style={styles.list}>
-            {RECORD_CATEGORIES.map((category) => {
-              const count = transfer.countFor(category);
-              return (
-                <ThemedView key={category.id} type="backgroundElement" style={styles.categoryRow}>
-                  <View style={styles.flex}>
-                    <ThemedText style={styles.bold} numberOfLines={1}>
-                      {category.emoji} {category.label}
-                    </ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {transfer.isLoading ? ' ' : count === 1 ? '1 entry' : `${count} entries`}
-                    </ThemedText>
-                  </View>
-                  <Button
-                    label="Template"
-                    icon="file-text"
-                    variant="secondary"
-                    onPress={() => transfer.downloadTemplate(category)}
-                    disabled={fileStatus.kind === 'working'}
-                  />
-                  <Button
-                    label="Export"
-                    icon="download"
-                    variant="secondary"
-                    onPress={() => transfer.exportCategory(category)}
-                    disabled={fileStatus.kind === 'working' || count === 0}
-                  />
-                </ThemedView>
-              );
-            })}
-          </View>
+          <ThemedView type="backgroundElement" style={[styles.card, styles.exportCard]}>
+            <ThemedText style={styles.bold}>All records</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {transfer.isLoading
+                ? ' '
+                : transfer.entryCount === 0
+                  ? 'No records yet.'
+                  : `${plural(transfer.entryCount, 'record', 'records')} in ${plural(transfer.categoryCount, 'category', 'categories')}. The file has every category, with a Category column saying where each record goes.`}
+            </ThemedText>
+            <View style={styles.actions}>
+              <Button
+                label="Template"
+                icon="file-text"
+                variant="secondary"
+                onPress={transfer.downloadTemplate}
+                disabled={fileStatus.kind === 'working'}
+                style={styles.flex}
+              />
+              <Button
+                label="Export all"
+                icon="download"
+                onPress={transfer.exportAll}
+                disabled={fileStatus.kind === 'working' || transfer.entryCount === 0}
+                style={styles.flex}
+              />
+            </View>
+          </ThemedView>
 
           {fileStatus.kind === 'done' || fileStatus.kind === 'error' ? (
             <View style={styles.fileStatus}>
@@ -138,7 +137,7 @@ export default function RecordsTransferScreen() {
             </View>
           ) : null}
           <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-            A template has the right column names and one example row to replace.
+            The template has every column and one example row per category to replace or delete.
           </ThemedText>
         </ScrollView>
       </SafeAreaView>
@@ -150,9 +149,6 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
   const theme = useTheme();
   const { options, summary } = transfer;
   if (!summary) return null;
-  const titleLabel =
-    preview.category.fields.find((field) => field.key === preview.category.titleField)?.label ??
-    'name';
   const toneColor = {
     ok: theme.success,
     warning: WARNING,
@@ -167,9 +163,16 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
           {preview.fileName}
         </ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
-          {preview.category.emoji} {preview.category.label} ·{' '}
-          {preview.rows.length === 1 ? '1 row' : `${preview.rows.length} rows`}
+          {plural(preview.rows.length, 'row', 'rows')} ·{' '}
+          {plural(preview.categories.length, 'category', 'categories')}
         </ThemedText>
+        {preview.categories.length > 0 ? (
+          <ThemedText type="small" themeColor="textSecondary">
+            {preview.categories
+              .map(({ category, rows }) => `${category.emoji} ${category.label} ${rows}`)
+              .join(' · ')}
+          </ThemedText>
+        ) : null}
         <View style={styles.counts}>
           <Count icon="check-circle" color={theme.success} text={`${summary.ready} ready`} />
           {summary.invalid > 0 ? (
@@ -200,7 +203,7 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
           <View style={styles.flex}>
             <ThemedText style={styles.bold}>Import rows with errors anyway</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              {`${summary.fixable === 1 ? '1 row' : `${summary.fixable} rows`}: the invalid values are left blank. Rows missing "${titleLabel}" are always skipped.`}
+              {`${plural(summary.fixable, 'row', 'rows')}: the invalid values are left blank. Rows without a name or a known category are always skipped.`}
             </ThemedText>
           </View>
           <Switch
@@ -234,7 +237,7 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
           <ThemedView key={row.line} type="backgroundElement" style={styles.previewRow}>
             <View style={styles.previewRowHeader}>
               <ThemedText numberOfLines={1} style={[styles.flex, styles.bold]}>
-                {row.title || `(no ${titleLabel.toLowerCase()})`}
+                {row.title || `(no ${titleLabel(row).toLowerCase()})`}
               </ThemedText>
               <ThemedText type="smallBold" style={{ color: toneColor[status.tone] }}>
                 {status.label}
@@ -242,6 +245,7 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
             </View>
             <ThemedText type="small" themeColor="textSecondary">
               Row {row.line}
+              {row.category ? ` · ${row.category.emoji} ${row.category.label}` : ''}
             </ThemedText>
             {row.errors.map((message) => (
               <ThemedText key={message} type="small" themeColor="danger">
@@ -278,6 +282,15 @@ function ImportPreviewPanel({ transfer, preview }: { transfer: Transfer; preview
       </View>
     </View>
   );
+}
+
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
+/** What names a row's entry, for "(no …)" when it's blank. */
+function titleLabel(row: ImportRow): string {
+  const category = row.category;
+  return category?.fields.find((field) => field.key === category.titleField)?.label ?? 'name';
 }
 
 type CountProps = {
@@ -362,14 +375,8 @@ const styles = StyleSheet.create({
     gap: Spacing.two,
     marginTop: Spacing.two,
   },
-  categoryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.two,
-    borderRadius: Spacing.three,
-    paddingVertical: Spacing.two,
-    paddingLeft: Spacing.three,
-    paddingRight: Spacing.two,
+  exportCard: {
+    marginTop: Spacing.two,
   },
   counts: {
     flexDirection: 'row',

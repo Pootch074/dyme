@@ -91,24 +91,29 @@ function addEntry(category: RecordCategoryId, input: RecordEntryInput) {
   markCategoryModified(category);
 }
 
-/** Adds imported entries in one save; `createdAt` (ISO) defaults to now. No photos. */
+/** Adds imported entries, of any categories, in one save; `createdAt` (ISO) defaults to now. No photos. */
 function importEntries(
-  category: RecordCategoryId,
-  inputs: readonly { values: Record<string, string>; createdAt: string | null }[]
+  inputs: readonly {
+    category: RecordCategoryId;
+    values: Record<string, string>;
+    createdAt: string | null;
+  }[]
 ) {
   if (inputs.length === 0) return;
   const now = new Date().toISOString();
   const imported = inputs.map(
     (input): RecordEntry => ({
       id: generateId(),
-      category,
+      category: input.category,
       values: input.values,
       imageRef: null,
       createdAt: input.createdAt ?? now,
     })
   );
   store.update((prev) => [...prev, ...imported]);
-  markCategoryModified(category);
+  for (const category of new Set(inputs.map((input) => input.category))) {
+    markCategoryModified(category);
+  }
 }
 
 function updateEntry(id: string, input: RecordEntryInput) {
