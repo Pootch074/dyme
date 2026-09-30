@@ -18,7 +18,10 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.dyme074.dymeApp"
+      "package": "com.dyme074.dymeApp",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -43,7 +46,8 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to access your photos so you can attach a picture to a purchase.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to use your camera so you can photograph a purchase."
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,
