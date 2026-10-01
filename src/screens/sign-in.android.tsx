@@ -1,13 +1,25 @@
-import { Button, Column, Icon, IconButton, Row, Spacer, Text } from '@expo/ui/jetpack-compose';
+import {
+  Box,
+  Button,
+  Column,
+  Icon,
+  IconButton,
+  RNHostView,
+  Row,
+  Spacer,
+  Text,
+} from '@expo/ui/jetpack-compose';
 import {
   fillMaxSize,
   fillMaxWidth,
   imePadding,
   padding,
+  size,
   verticalScroll,
   width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useState } from 'react';
+import { Image, StyleSheet } from 'react-native';
 
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader } from '@/components/compose/screen';
@@ -24,12 +36,25 @@ export default function SignInScreen() {
       <Column
         modifiers={[fillMaxSize(), verticalScroll(), imePadding(), padding(24, 64, 24, 24)]}
         verticalArrangement={{ spacedBy: 16 }}>
+        {/* A React Native image hosted in Compose: the native Compose Image view
+            isn't in every installed build of the app (or in Expo Go). */}
+        <Box modifiers={[size(96, 96)]}>
+          <RNHostView>
+            <Image
+              source={require('@/assets/images/dyme-logo.png')}
+              style={styles.logo}
+              resizeMode="contain"
+              accessibilityLabel="Dyme logo"
+            />
+          </RNHostView>
+        </Box>
         <ScreenHeader title="Welcome back" subtitle="Sign in to continue." />
 
         <ControlledTextField
-          value={form.username}
-          onChangeText={form.setUsername}
-          label="Username"
+          value={form.email}
+          onChangeText={form.setEmail}
+          label="Email"
+          keyboardType="email"
           exact
           isError={Boolean(form.error)}
         />
@@ -66,3 +91,10 @@ export default function SignInScreen() {
     </ComposeScreen>
   );
 }
+
+const styles = StyleSheet.create({
+  logo: {
+    width: 96,
+    height: 96,
+  },
+});

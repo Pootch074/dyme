@@ -1,4 +1,5 @@
 import { Feather } from '@react-native-vector-icons/feather';
+import { Image } from 'expo-image';
 import { useRef, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -35,9 +36,12 @@ export default function SignInScreen() {
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled">
-            <View style={styles.badge}>
-              <Feather name="lock" size={24} color="#3c87f7" />
-            </View>
+            <Image
+              source={require('@/assets/images/dyme-logo.png')}
+              style={styles.logo}
+              contentFit="contain"
+              accessibilityLabel="Dyme logo"
+            />
             <ThemedText type="subtitle">Welcome back</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
               Sign in to continue.
@@ -45,15 +49,16 @@ export default function SignInScreen() {
 
             <View style={styles.field}>
               <ThemedText type="small" themeColor="textSecondary" style={styles.label}>
-                Username
+                Email
               </ThemedText>
               <FormInput
-                value={form.username}
-                onChangeText={form.setUsername}
-                placeholder="Username"
+                value={form.email}
+                onChangeText={form.setEmail}
+                placeholder="you@example.com"
+                keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                autoComplete="username"
+                autoComplete="email"
                 returnKeyType="next"
                 onSubmitEditing={() => passwordRef.current?.focus()}
                 invalid={Boolean(form.error)}
@@ -131,13 +136,9 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
   },
-  badge: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(60, 135, 247, 0.15)',
+  logo: {
+    width: 96,
+    height: 96,
     marginBottom: Spacing.two,
   },
   subtitle: {

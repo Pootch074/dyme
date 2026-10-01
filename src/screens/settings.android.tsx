@@ -36,7 +36,7 @@ const TRANSPARENT = '#00000000';
 export default function SettingsScreen() {
   const colors = useAppMaterialColors();
   const { preference, setPreference } = useThemePreference();
-  const { username, signOut } = useAuth();
+  const { email, signOut } = useAuth();
 
   return (
     <ComposeScreen>
@@ -56,7 +56,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon={Icons.logout}
             label="Sign out"
-            description={`Signed in as ${username}`}
+            description={`Signed in as ${email}`}
             onClick={signOut}
           />
         </Column>

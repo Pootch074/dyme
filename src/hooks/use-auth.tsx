@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isAuthApiError, isAuthRetryableFetchError, type Session } from '@supabase/supabase-js';
 import {
   createContext,
   type ReactNode,
@@ -9,74 +10,89 @@ import {
   useState,
 } from 'react';
 
-import { loadAccounts, normalizeUsername, verifyCredentials } from '@/auth/credentials';
+import { supabase } from '@/lib/supabase';
 
-/** Remembers who is signed in, so reopening the app doesn't ask again until they sign out. */
-const SESSION_KEY = 'auth-session';
+/** Why a sign-in didn't go through, worded for the Sign in screen. */
+export type SignInFailure =
+  | 'invalid-credentials'
+  | 'email-not-confirmed'
+  | 'rate-limited'
+  | 'network'
+  | 'unknown';
+
+export type SignInResult = { ok: true } | { ok: false; reason: SignInFailure };
 
 type AuthContextValue = {
-  /** Username of the signed-in user, or null when signed out. */
-  username: string | null;
+  /** Email of the signed-in user, or null when signed out. */
+  email: string | null;
   isSignedIn: boolean;
-  /** Resolves to true on success, false when the username or password is wrong. */
-  signIn: (username: string, password: string) => Promise<boolean>;
-  signOut: () => void;
+  signIn: (email: string, password: string) => Promise<SignInResult>;
+  signOut: () => Promise<void>;
 };
+
+/** Keys from the local-only sign-in this app used before Supabase Auth. */
+const LEGACY_AUTH_KEYS = ['auth-session', 'auth-users'];
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /**
- * Tracks the signed-in user. Screens other than Sign in are only reachable
- * while signed in (see the protected routes in app/_layout).
+ * Tracks the Supabase Auth session. Screens other than Sign in are only
+ * reachable while signed in (see the protected routes in app/_layout).
+ * Supabase keeps the session in storage and refreshes it, so reopening the
+ * app doesn't ask again until the user signs out.
  */
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [username, setUsername] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    // A saved session only counts if its account still exists.
-    Promise.all([AsyncStorage.getItem(SESSION_KEY), loadAccounts()])
-      .then(([saved, accounts]) => {
-        if (cancelled || !saved) return;
-        const account = accounts.find(
-          (candidate) => normalizeUsername(candidate.username) === normalizeUsername(saved)
-        );
-        if (account) setUsername(account.username);
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) console.warn('Failed to restore sign-in session', error.message);
+        if (!cancelled) setSession(data.session);
       })
       .catch((error) => {
-        console.warn('Failed to load sign-in session', error);
+        console.warn('Failed to restore sign-in session', error);
       })
       .finally(() => {
         if (!cancelled) setIsLoading(false);
       });
 
+    // Sign in, sign out, token refreshes, and a refresh token that stopped
+    // working (which signs the user out) all arrive here.
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
+      setSession(next);
+    });
+
+    AsyncStorage.multiRemove(LEGACY_AUTH_KEYS).catch(() => {});
+
     return () => {
       cancelled = true;
+      listener.subscription.unsubscribe();
     };
   }, []);
 
-  const signIn = useCallback(async (name: string, password: string) => {
-    const account = await verifyCredentials(name, password);
-    if (!account) return false;
-    setUsername(account.username);
-    AsyncStorage.setItem(SESSION_KEY, account.username).catch((error) => {
-      console.warn('Failed to save sign-in session', error);
-    });
-    return true;
+  const signIn = useCallback(async (email: string, password: string): Promise<SignInResult> => {
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    if (!error) return { ok: true };
+    // Only the code is logged: the message can echo what was typed.
+    console.warn('Sign in failed', error.code ?? error.name, error.status);
+    return { ok: false, reason: signInFailure(error) };
   }, []);
 
-  const signOut = useCallback(() => {
-    setUsername(null);
-    AsyncStorage.removeItem(SESSION_KEY).catch((error) => {
-      console.warn('Failed to clear sign-in session', error);
-    });
+  const signOut = useCallback(async () => {
+    // Ends this device's session only. The local session is cleared even when
+    // the server can't be reached, so signing out always works.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) console.warn('Sign out could not reach the server', error.code ?? error.name);
   }, []);
 
   const value = useMemo(
-    () => ({ username, isSignedIn: username !== null, signIn, signOut }),
-    [username, signIn, signOut]
+    () => ({ email: session?.user.email ?? null, isSignedIn: session !== null, signIn, signOut }),
+    [session, signIn, signOut]
   );
 
   // Hold the app until the saved session is read, so a signed-in user never
@@ -84,6 +100,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   if (isLoading) return null;
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+function signInFailure(error: unknown): SignInFailure {
+  if (isAuthRetryableFetchError(error)) return 'network';
+  if (!isAuthApiError(error)) return 'unknown';
+  if (error.code === 'invalid_credentials') return 'invalid-credentials';
+  if (error.code === 'email_not_confirmed') return 'email-not-confirmed';
+  if (error.status === 429) return 'rate-limited';
+  return 'unknown';
 }
 
 export function useAuth(): AuthContextValue {

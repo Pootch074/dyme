@@ -1,19 +1,31 @@
 import { useState } from 'react';
 
-import { useAuth } from '@/hooks/use-auth';
+import { type SignInFailure, useAuth } from '@/hooks/use-auth';
+
+const FAILURE_MESSAGES: Record<SignInFailure, string> = {
+  'invalid-credentials': 'Incorrect email or password.',
+  'email-not-confirmed': 'Confirm your email address, then sign in.',
+  'rate-limited': 'Too many attempts. Wait a moment and try again.',
+  network: "Couldn't reach the server. Check your connection and try again.",
+  unknown: "Couldn't sign in. Please try again.",
+};
 
 /** State and submit for the Sign in screen, shared by the iOS/web and Android versions. */
 export function useSignInForm() {
   const { signIn } = useAuth();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const submit = async () => {
     if (isSubmitting) return;
-    if (!username.trim() || !password) {
-      setError('Enter your username and password.');
+    if (!email.trim() || !password) {
+      setError('Enter your email and password.');
+      return;
+    }
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setError('Enter a valid email address.');
       return;
     }
 
@@ -21,25 +33,26 @@ export function useSignInForm() {
     setError(null);
     try {
       // On success the protected routes open and this screen unmounts.
-      if (!(await signIn(username, password))) {
-        setError('Incorrect username or password.');
-        setPassword('');
+      const result = await signIn(email, password);
+      if (!result.ok) {
+        setError(FAILURE_MESSAGES[result.reason]);
+        if (result.reason === 'invalid-credentials') setPassword('');
         setIsSubmitting(false);
       }
     } catch (caught) {
       console.warn('Sign in failed', caught);
-      setError("Couldn't sign in. Please try again.");
+      setError(FAILURE_MESSAGES.unknown);
       setIsSubmitting(false);
     }
   };
 
   return {
-    username,
+    email,
     password,
     error,
     isSubmitting,
-    setUsername: (text: string) => {
-      setUsername(text);
+    setEmail: (text: string) => {
+      setEmail(text);
       if (error) setError(null);
     },
     setPassword: (text: string) => {

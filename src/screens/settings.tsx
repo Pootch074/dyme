@@ -25,7 +25,7 @@ const THEME_OPTIONS: ThemeOption[] = [
 export default function SettingsScreen() {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
-  const { username, signOut } = useAuth();
+  const { email, signOut } = useAuth();
 
   return (
     <ThemedView style={styles.container}>
@@ -46,7 +46,7 @@ export default function SettingsScreen() {
             <SettingsRow
               icon="log-out"
               label="Sign out"
-              description={`Signed in as ${username}`}
+              description={`Signed in as ${email}`}
               onPress={signOut}
             />
           </View>
