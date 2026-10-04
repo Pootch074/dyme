@@ -10,6 +10,7 @@ import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { AuthProvider, useAuth } from '@/hooks/use-auth';
 import { useChromeColors } from '@/hooks/use-chrome-colors';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { SyncProvider } from '@/hooks/use-sync';
 import { ThemePreferenceProvider } from '@/hooks/use-theme-preference';
 
 SplashScreen.preventAutoHideAsync();
@@ -20,7 +21,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <ThemePreferenceProvider>
         <AuthProvider>
-          <ThemedStack />
+          <SyncProvider>
+            <ThemedStack />
+          </SyncProvider>
         </AuthProvider>
       </ThemePreferenceProvider>
     </GestureHandlerRootView>
@@ -69,6 +72,7 @@ function ThemedStack() {
           <Stack.Screen name="shopping/[id]" />
           <Stack.Screen name="dtr" />
           <Stack.Screen name="profile" />
+          <Stack.Screen name="backup" />
           <Stack.Screen name="export" />
         </Stack.Protected>
         <Stack.Protected guard={!isSignedIn}>

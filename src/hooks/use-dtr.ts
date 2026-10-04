@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
+import { notifyLocalChange, onRemoteApplied } from '@/sync/change-events';
 import { readStoredArray } from '@/utils/persistent-store';
 
 export type DtrEntry = {
@@ -47,13 +48,28 @@ export function useDtr() {
     };
   }, []);
 
+  // Online sync downloaded newer entries: show them.
+  useEffect(
+    () =>
+      onRemoteApplied(STORAGE_KEY, () => {
+        loadDtrEntries()
+          .then(setEntries)
+          .catch((error) => {
+            console.warn('Failed to reload DTR entries after sync', error);
+          });
+      }),
+    []
+  );
+
   useEffect(() => {
     // Skip until the initial load above finishes, so we don't clobber storage
     // with the empty starting state.
     if (isLoading) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries)).catch((error) => {
-      console.warn('Failed to save DTR entries to storage', error);
-    });
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries))
+      .then(notifyLocalChange)
+      .catch((error) => {
+        console.warn('Failed to save DTR entries to storage', error);
+      });
   }, [entries, isLoading]);
 
   /** Adds a new entry, or replaces the existing one for that date. */

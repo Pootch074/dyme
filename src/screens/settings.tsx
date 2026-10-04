@@ -6,7 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { backupDescription } from '@/hooks/use-backup-form';
 import { useAuth } from '@/hooks/use-auth';
+import { useSync } from '@/hooks/use-sync';
 import { useTheme } from '@/hooks/use-theme';
 import { type ThemePreference, useThemePreference } from '@/hooks/use-theme-preference';
 
@@ -26,6 +28,7 @@ export default function SettingsScreen() {
   const theme = useTheme();
   const { preference, setPreference } = useThemePreference();
   const { email, signOut } = useAuth();
+  const sync = useSync();
 
   return (
     <ThemedView style={styles.container}>
@@ -54,13 +57,22 @@ export default function SettingsScreen() {
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
             Data
           </ThemedText>
-          <Link href="/export" asChild>
-            <SettingsRow
-              icon="download"
-              label="Export data"
-              description="Save your data as an Excel or CSV file"
-            />
-          </Link>
+          <View style={styles.rows}>
+            <Link href="/backup" asChild>
+              <SettingsRow
+                icon="cloud"
+                label="Online backup"
+                description={backupDescription(sync.status, sync.error)}
+              />
+            </Link>
+            <Link href="/export" asChild>
+              <SettingsRow
+                icon="download"
+                label="Export data"
+                description="Save your data as an Excel or CSV file"
+              />
+            </Link>
+          </View>
 
           <ThemedText type="smallBold" themeColor="textSecondary" style={styles.sectionHeader}>
             Appearance

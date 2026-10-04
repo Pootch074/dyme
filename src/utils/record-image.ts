@@ -39,3 +39,23 @@ export function deleteSavedImage(imageRef: string): void {
     console.warn('Failed to delete record image', error);
   }
 }
+
+/** Whether the saved image file is on this phone. */
+export function savedImageExists(imageRef: string): boolean {
+  return new File(imageDirectory(), imageRef).exists;
+}
+
+/** The saved image's raw bytes (for encrypted upload). */
+export async function readSavedImage(imageRef: string): Promise<Uint8Array> {
+  return new File(imageDirectory(), imageRef).bytes();
+}
+
+/** Saves raw bytes under `imageRef` (e.g. a photo restored from the online copy). */
+export function writeSavedImage(imageRef: string, bytes: Uint8Array): void {
+  const directory = imageDirectory();
+  directory.create({ idempotent: true, intermediates: true });
+  const file = new File(directory, imageRef);
+  if (file.exists) file.delete();
+  file.create();
+  file.write(bytes);
+}

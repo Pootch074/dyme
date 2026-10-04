@@ -10,16 +10,19 @@ import {
   Text,
 } from '@expo/ui/jetpack-compose';
 import {
+  background,
+  clip,
   fillMaxSize,
   fillMaxWidth,
   imePadding,
   padding,
+  Shapes,
   size,
   verticalScroll,
   width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { useState } from 'react';
-import { Image, StyleSheet } from 'react-native';
+import { Image, StyleSheet, View } from 'react-native';
 
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader } from '@/components/compose/screen';
@@ -37,15 +40,19 @@ export default function SignInScreen() {
         modifiers={[fillMaxSize(), verticalScroll(), imePadding(), padding(24, 64, 24, 24)]}
         verticalArrangement={{ spacedBy: 16 }}>
         {/* A React Native image hosted in Compose: the native Compose Image view
-            isn't in every installed build of the app (or in Expo Go). */}
-        <Box modifiers={[size(96, 96)]}>
+            isn't in every installed build of the app (or in Expo Go). The logo is
+            dark on transparent, so it sits on a white tile to stay visible in
+            dark mode. */}
+        <Box modifiers={[size(96, 96), clip(Shapes.RoundedCorner(22)), background('#FFFFFF')]}>
           <RNHostView>
-            <Image
-              source={require('@/assets/images/dyme-logo.png')}
-              style={styles.logo}
-              resizeMode="contain"
-              accessibilityLabel="Dyme logo"
-            />
+            <View style={styles.logoTile}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.logo}
+                resizeMode="contain"
+                accessibilityLabel="Dyme logo"
+              />
+            </View>
           </RNHostView>
         </Box>
         <ScreenHeader title="Welcome back" subtitle="Sign in to continue." />
@@ -93,8 +100,13 @@ export default function SignInScreen() {
 }
 
 const styles = StyleSheet.create({
+  logoTile: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   logo: {
-    width: 96,
-    height: 96,
+    width: 72,
+    height: 72,
   },
 });

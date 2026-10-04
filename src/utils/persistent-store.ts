@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSyncExternalStore } from 'react';
 
+import { notifyLocalChange, onRemoteApplied } from '@/sync/change-events';
+
 type ValueState<T> = { value: T; isLoading: boolean };
 
 /**
@@ -36,6 +38,16 @@ export function createPersistentValue<T>(options: {
     return loading;
   };
 
+  // Online sync replaced what's stored: read it again so screens show it.
+  onRemoteApplied(options.storageKey, () => {
+    options
+      .load()
+      .then((value) => setState({ value, isLoading: false }))
+      .catch((error) => {
+        console.warn(`Failed to reload ${options.label} after sync`, error);
+      });
+  });
+
   const subscribe = (listener: () => void) => {
     listeners.add(listener);
     ensureLoaded();
@@ -51,9 +63,11 @@ export function createPersistentValue<T>(options: {
     if (state.isLoading) return;
     const value = change(state.value);
     setState({ ...state, value });
-    AsyncStorage.setItem(options.storageKey, JSON.stringify(value)).catch((error) => {
-      console.warn(`Failed to save ${options.label} to storage`, error);
-    });
+    AsyncStorage.setItem(options.storageKey, JSON.stringify(value))
+      .then(notifyLocalChange)
+      .catch((error) => {
+        console.warn(`Failed to save ${options.label} to storage`, error);
+      });
   };
 
   const useValue = () => useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

@@ -22,7 +22,9 @@ import { router } from 'expo-router';
 import { Icons } from '@/components/compose/icons';
 import { ComposeScreen, ScreenHeader, SectionLabel } from '@/components/compose/screen';
 import { useAppMaterialColors } from '@/components/compose/theme';
+import { backupDescription } from '@/hooks/use-backup-form';
 import { useAuth } from '@/hooks/use-auth';
+import { useSync } from '@/hooks/use-sync';
 import { type ThemePreference, useThemePreference } from '@/hooks/use-theme-preference';
 
 const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
@@ -37,6 +39,7 @@ export default function SettingsScreen() {
   const colors = useAppMaterialColors();
   const { preference, setPreference } = useThemePreference();
   const { email, signOut } = useAuth();
+  const sync = useSync();
 
   return (
     <ComposeScreen>
@@ -63,6 +66,12 @@ export default function SettingsScreen() {
 
         <Column modifiers={[fillMaxWidth()]} verticalArrangement={{ spacedBy: 8 }}>
           <SectionLabel>Data</SectionLabel>
+          <SettingsRow
+            icon={Icons.upload}
+            label="Online backup"
+            description={backupDescription(sync.status, sync.error)}
+            onClick={() => router.push('/backup')}
+          />
           <SettingsRow
             icon={Icons.download}
             label="Export data"

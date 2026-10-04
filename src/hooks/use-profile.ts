@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useState } from 'react';
 
+import { notifyLocalChange, onRemoteApplied } from '@/sync/change-events';
+
 export type Profile = {
   firstName: string;
   lastName: string;
@@ -73,13 +75,28 @@ export function useProfile() {
     };
   }, []);
 
+  // Online sync downloaded a newer profile: show it.
+  useEffect(
+    () =>
+      onRemoteApplied(STORAGE_KEY, () => {
+        loadProfile()
+          .then(setProfile)
+          .catch((error) => {
+            console.warn('Failed to reload profile after sync', error);
+          });
+      }),
+    []
+  );
+
   useEffect(() => {
     // Skip until the initial load above finishes, so we don't clobber storage
     // with the empty starting state.
     if (isLoading) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile)).catch((error) => {
-      console.warn('Failed to save profile to storage', error);
-    });
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+      .then(notifyLocalChange)
+      .catch((error) => {
+        console.warn('Failed to save profile to storage', error);
+      });
   }, [profile, isLoading]);
 
   const updateProfile = useCallback((next: Profile) => {

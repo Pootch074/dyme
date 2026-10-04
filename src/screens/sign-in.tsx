@@ -36,12 +36,16 @@ export default function SignInScreen() {
           <ScrollView
             contentContainerStyle={styles.content}
             keyboardShouldPersistTaps="handled">
-            <Image
-              source={require('@/assets/images/dyme-logo.png')}
-              style={styles.logo}
-              contentFit="contain"
-              accessibilityLabel="Dyme logo"
-            />
+            {/* The logo is dark on transparent, so it sits on a white tile to stay
+                visible in dark mode. */}
+            <View style={styles.logoTile}>
+              <Image
+                source={require('@/assets/images/icon.png')}
+                style={styles.logo}
+                contentFit="contain"
+                accessibilityLabel="Dyme logo"
+              />
+            </View>
             <ThemedText type="subtitle">Welcome back</ThemedText>
             <ThemedText type="small" themeColor="textSecondary" style={styles.subtitle}>
               Sign in to continue.
@@ -136,10 +140,18 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
     gap: Spacing.three,
   },
-  logo: {
+  logoTile: {
     width: 96,
     height: 96,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
     marginBottom: Spacing.two,
+  },
+  logo: {
+    width: 72,
+    height: 72,
   },
   subtitle: {
     marginTop: -Spacing.two,

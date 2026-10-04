@@ -25,6 +25,8 @@ export type SignInResult = { ok: true } | { ok: false; reason: SignInFailure };
 type AuthContextValue = {
   /** Email of the signed-in user, or null when signed out. */
   email: string | null;
+  /** Supabase id of the signed-in user, or null when signed out. */
+  userId: string | null;
   isSignedIn: boolean;
   signIn: (email: string, password: string) => Promise<SignInResult>;
   signOut: () => Promise<void>;
@@ -91,7 +93,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ email: session?.user.email ?? null, isSignedIn: session !== null, signIn, signOut }),
+    () => ({
+      email: session?.user.email ?? null,
+      userId: session?.user.id ?? null,
+      isSignedIn: session !== null,
+      signIn,
+      signOut,
+    }),
     [session, signIn, signOut]
   );
 
